@@ -7,13 +7,13 @@ import { S, fmtCash, rankFor, DISTRICTS } from './config.js';
 import { sfxCash, sfxFail } from './audio.js';
 
 export const MISSIONS = [
-  { giver: 'LUPE',   title: 'First Fix',      type: 'goto',    target: [-40, -192], time: 200, reward: 400,  brief: 'Meet Lupe at MO\u2019S on Neon Row. She has your first job.' },
+  { giver: 'LUPE',   title: 'First Fix',      type: 'goto',    target: [-40, -192], time: 200, reward: 400,  brief: 'Meet Lupe at MO’S on Neon Row. She has your first job.' },
   { giver: 'SULLY',  title: 'Tow Job',        type: 'driveTo', target: [192, 192],  time: 240, reward: 650,  brief: 'Sully needs a car moved to Dockside. Grab wheels and drive it there.' },
-  { giver: 'MARCO',  title: 'Marco\u2019s Run', type: 'driveTo', target: [-192, 192], time: 210, reward: 800,  brief: 'Marco\u2019s package goes to Old Port. Drive it there, no scratches.' },
-  { giver: 'BRANDT', title: 'The Ledger',     type: 'hold',    target: [64, 64],    time: 240, reward: 1100, brief: 'Brandt\u2019s ledger is in the Downtown office. Hold the spot 5s to lift it.' },
-  { giver: 'AURORA', title: 'Aurora\u2019s Light', type: 'goto',  target: [-262, -40], time: 200, reward: 900,  brief: 'Aurora waits on the beach boardwalk. Walk the sand, hear her out.' },
+  { giver: 'MARCO',  title: 'Marco’s Run', type: 'driveTo', target: [-192, 192], time: 210, reward: 800,  brief: 'Marco’s package goes to Old Port. Drive it there, no scratches.' },
+  { giver: 'BRANDT', title: 'The Ledger',     type: 'hold',    target: [64, 64],    time: 240, reward: 1100, brief: 'Brandt’s ledger is in the Downtown office. Hold the spot 5s to lift it.' },
+  { giver: 'AURORA', title: 'Aurora’s Light', type: 'goto',  target: [-262, -40], time: 200, reward: 900,  brief: 'Aurora waits on the beach boardwalk. Walk the sand, hear her out.' },
   { giver: 'LUPE',   title: 'Hot Wheels',     type: 'carjack', target: [0, -128],   time: 180, reward: 1000, brief: 'Lupe wants a fresh ride. Jack any car on Neon Row and bring it to the mark.' },
-  { giver: 'SULLY',  title: 'Heat Wave',      type: 'escape',  target: [256, -192], time: 300, reward: 1400, brief: 'The heat is on. Lose the cops, then reach Sully\u2019s hideout in Palm Heights.' },
+  { giver: 'SULLY',  title: 'Heat Wave',      type: 'escape',  target: [256, -192], time: 300, reward: 1400, brief: 'The heat is on. Lose the cops, then reach Sully’s hideout in Palm Heights.' },
   { giver: 'BRANDT', title: 'The Solara Job', type: 'finale',  target: [-128, 0],   time: 360, reward: 5000, brief: 'The big one. Hold the bank door 5s, then drive the getaway to the Marina.' },
 ];
 

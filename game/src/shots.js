@@ -97,7 +97,7 @@ export function applyShot(n) {
     S.px = -40; S.pz = -184; S.heading = Math.PI;
     S.missionIdx = 0;
     startMission();
-    showDialogue('LUPE', 'Meet me at MO\u2019S, Kai. First job — don\u2019t keep me waiting.');
+    showDialogue('LUPE', 'Meet me at MO’S, Kai. First job — don’t keep me waiting.');
     S.dialogueUntil = 9999; // keep Lupe's dialogue + portrait in frame
     addWanted(2, 'shot');
     return { camPos: [-46, 1.7, -184], camLook: [-39, 1.25, -184] };

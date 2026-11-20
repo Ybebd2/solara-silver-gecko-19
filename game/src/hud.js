@@ -176,7 +176,7 @@ export function buildHUD(opts = {}) {
   document.getElementById('start-btn').addEventListener('click', () => {
     document.getElementById('start-screen').style.display = 'none';
     S.started = true;
-    showDialogue('LUPE', 'Welcome back to Solara, Kai. Eight jobs, one city — make it yours.', 'Eight jobs? Then let\u2019s start with the first one, Lupe. I\u2019m ready.');
+    showDialogue('LUPE', 'Welcome back to Solara, Kai. Eight jobs, one city — make it yours.', 'Eight jobs? Then let’s start with the first one, Lupe. I’m ready.');
     S.dialogueUntil = S.time + 9;
   });
   document.getElementById('load-btn').addEventListener('click', () => {
