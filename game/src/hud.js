@@ -7,6 +7,7 @@ import { S, DISTRICTS, WORLD, WEAPONS, RADIO, fmtCash, fmtClock, districtAt } fr
 import { currentMission, missionDistance, missionTarget } from './missions.js';
 import { cruisers, officers, policeUnits } from './police.js';
 import { nearestCar } from './vehicles.js';
+import { geckoCount, geckoTotal } from './world.js';
 
 let els = {};
 let minimap = null;
@@ -54,6 +55,7 @@ export function buildHUD(opts = {}) {
       <div id="rank">ROOKIE · 0/8 JOBS</div>
       <div id="rp-bar"><div id="rp-fill"></div></div>
       <div id="district">DOWNTOWN · GRIP 30%</div>
+      <div id="geckos">🦎 GECKOS 0/20</div>
       <div id="mission-panel">
         <div id="mission-title">NO JOB ACTIVE</div>
         <div id="mission-brief">Find the yellow beacon — press E to start the job.</div>
@@ -79,7 +81,7 @@ export function buildHUD(opts = {}) {
         <div id="car-name">COMET</div>
         <div id="car-cond"><div id="car-cond-fill"></div></div>
         <div id="car-line"><span id="car-speed">0 km/h</span> · <span id="car-gear">G1</span> · <span id="car-radio">SOLARA 98.3</span></div>
-        <div id="car-song">Golden Hour — Kai &amp; The Coast</div>
+        <div id="car-song">Bright Day — Kai &amp; The Coast</div>
       </div>
       <div id="crew">
         <span id="crew-mara">Z MARA</span>
@@ -113,6 +115,7 @@ export function buildHUD(opts = {}) {
     rank: document.getElementById('rank'),
     rpFill: document.getElementById('rp-fill'),
     district: document.getElementById('district'),
+    geckos: document.getElementById('geckos'),
     missionTitle: document.getElementById('mission-title'),
     missionBrief: document.getElementById('mission-brief'),
     missionClock: document.getElementById('mission-clock'),
@@ -172,7 +175,7 @@ export function buildHUD(opts = {}) {
   document.getElementById('start-btn').addEventListener('click', () => {
     document.getElementById('start-screen').style.display = 'none';
     S.started = true;
-    showDialogue('LUPE', 'Welcome back to Solara, Kai. Eight jobs, one city — make it yours.');
+    showDialogue('LUPE', 'Welcome back to Solara, Kai. Eight jobs, one city — make it yours.', 'Eight jobs? Then let\u2019s start with the first one, Lupe. I\u2019m ready.');
     S.dialogueUntil = S.time + 9;
   });
   document.getElementById('load-btn').addEventListener('click', () => {
@@ -200,10 +203,22 @@ const PORTRAITS = {
   MARCO: { skin: '#e8b98a', hair: '#6b4a2a', bg: '#ffb74d', initial: 'M' },
   BRANDT: { skin: '#c98e6a', hair: '#888888', bg: '#9b59b6', initial: 'B' },
   AURORA: { skin: '#e8b98a', hair: '#ffd23a', bg: '#69f0ae', initial: 'A' },
+  KAI: { skin: '#c98e6a', hair: '#2a1a0a', bg: '#22d3ee', initial: 'K' },
 };
 
-export function showDialogue(name, line) {
+// Two-way dialogue: showDialogue(name, line, reply?) — when a reply is
+// given, Kai answers after ~4.5 s so it reads as a conversation, not a
+// monologue. The swap is driven from hudTick so it respects game time.
+let replyAt = 0, replyLine = '', replyShown = false;
+export function showDialogue(name, line, reply) {
   if (!els.dialogue) return;
+  replyLine = reply || '';
+  replyAt = reply ? S.time + 4.5 : 0;
+  replyShown = false;
+  drawDialogue(name, line);
+}
+
+function drawDialogue(name, line) {
   els.dialogueName.textContent = name;
   els.dialogueLine.textContent = line;
   els.dialogue.style.display = 'flex';
@@ -318,6 +333,7 @@ export function hudTick(dt) {
   els.rpFill.style.width = (100 * S.jobsDone / 8) + '%';
   const d = districtAt(S.px, S.pz);
   els.district.textContent = (d ? d.name : 'SOLARA') + ' · GRIP ' + (d ? (d.grip || 50) : 50) + '%';
+  els.geckos.textContent = '🦎 GECKOS ' + geckoCount() + '/' + geckoTotal();
 
   // wanted stars — gold when gained
   let stars = '';
@@ -373,7 +389,12 @@ export function hudTick(dt) {
     els.jackPrompt.style.display = cand ? 'block' : 'none';
   } else els.jackPrompt.style.display = 'none';
 
-  // dialogue box: shows until dialogueUntil, with the character portrait
+  // dialogue box: shows until dialogueUntil, with the character portrait.
+  // Two-way: when a reply is queued and its time arrives, swap to Kai.
+  if (replyLine && !replyShown && S.time >= replyAt) {
+    replyShown = true;
+    drawDialogue('KAI', replyLine);
+  }
   if (S.started && S.time < S.dialogueUntil) els.dialogue.style.display = 'flex';
   else els.dialogue.style.display = 'none';
 
@@ -397,7 +418,7 @@ export function hudTick(dt) {
   const m = currentMission();
   if (!m) {
     els.missionTitle.textContent = 'ALL JOBS DONE — FIXER OF SOLARA';
-    els.missionBrief.textContent = 'Free roam. Jack cars, dodge the heat, enjoy the golden hour.';
+    els.missionBrief.textContent = 'Free roam. Jack cars, dodge the heat, hunt the Golden Geckos.';
     els.missionClock.textContent = '--:--';
     els.missionDist.textContent = '';
     setSegs(1);

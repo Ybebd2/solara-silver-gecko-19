@@ -12,7 +12,7 @@ export const traffic = [];    // {group, wheels, road, dir, speed, color}
 export const parked = [];     // {group, wheels, x, z, heading, taken}
 let sceneRef = null;
 
-const CAR_COLORS = [0xc0392b, 0x2e86c1, 0xf1c40f, 0x27ae60, 0x8e44ad, 0xe67e22, 0xecf0f1, 0x1c1c1e, 0x16a085, 0xd35400];
+const CAR_COLORS = [0xe74c3c, 0x3498db, 0xf1c40f, 0x2ecc71, 0x9b59b6, 0xff8c00, 0xffffff, 0x00bcd4, 0xff4081, 0x76ff03];
 
 // A car that actually looks like a car: low wide body, wedge hood, sloped
 // windshield, cabin with roof, rear spoiler, 4 wheels with hubcaps, and a
@@ -134,10 +134,13 @@ export function makeCar(color, opts = {}) {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.3), dark);
     bar.position.set(0, 1.48, -0.35);
     g.add(bar);
-    const red = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.14, 0.3), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
-    red.position.set(0, 1.56, -0.35);
+    const red = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.14, 0.3), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
+    red.position.set(-0.36, 1.56, -0.35);
     g.add(red);
-    g.userData.lightRed = red; g.userData.lightBlue = null;
+    const blueBar = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.14, 0.3), new THREE.MeshBasicMaterial({ color: 0x2040ff }));
+    blueBar.position.set(0.36, 1.56, -0.35);
+    g.add(blueBar);
+    g.userData.lightRed = red; g.userData.lightBlue = blueBar;
     const push = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.3, 0.12), dark);
     push.position.set(0, 0.45, 2.38);
     g.add(push);
@@ -183,6 +186,23 @@ export function makeCar(color, opts = {}) {
     }
   }
 
+  // side mirrors (small dark stalks + glass) so the car reads detailed
+  for (const sx of [-1.02, 1.02]) {
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 0.24), dark);
+    mirror.position.set(sx, 1.02, 0.55);
+    g.add(mirror);
+  }
+
+  // blob shadow: dark ellipse under the car so it reads grounded in daylight
+  const blob = new THREE.Mesh(
+    new THREE.CircleGeometry(1.6, 20),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false })
+  );
+  blob.rotation.x = -Math.PI / 2;
+  blob.scale.set(1, 1.7, 1);
+  blob.position.y = 0.02;
+  g.add(blob);
+
   g.traverse((o) => { if (o.isMesh) o.castShadow = false; });
   return { group: g, wheels };
 }
@@ -211,7 +231,7 @@ function spawnTrafficCar(scene, opts = {}) {
   let carOpts = {};
   if (opts.police) { color = 0xf5f5f5; carOpts = { police: true }; }
   else if (opts.taxi) { color = 0xf1c40f; carOpts = { taxi: true }; }
-  else if (opts.van) { color = [0xecf0f1, 0x7f8c8d, 0x2e86c1][Math.floor(Math.random() * 3)]; carOpts = { van: true }; }
+  else if (opts.van) { color = [0xecf0f1, 0xe74c3c, 0x2e86c1][Math.floor(Math.random() * 3)]; carOpts = { van: true }; }
   else if (opts.sports) { carOpts = { sports: true }; }
   const { group, wheels } = makeCar(color, carOpts);
   const t = (Math.random() - 0.5) * 500;
@@ -254,11 +274,15 @@ export function buildVehicles(scene) {
   spawnTrafficCar(scene, { sports: true });
   spawnTrafficCar(scene, { police: true });
   spawnTrafficCar(scene, { police: true });
-  // parked cars along roads near spawn and downtown
+  // parked cars along roads near spawn and downtown (extra along the
+  // screenshot roads so the frames read crowded, GTA 6 style)
   const spots = [
     [-40, 74, 0], [-24, 74, Math.PI], [8, -50, Math.PI / 2], [72, 8, 0],
     [-120, -56, Math.PI], [136, -120, -Math.PI / 2], [-8, 136, Math.PI],
     [200, 72, 0], [-184, 8, Math.PI / 2], [56, 200, 0],
+    [-56, 74, 0], [-8, 74, Math.PI], [24, 54, 0], [-72, 54, Math.PI],
+    [16, -182, 0], [-56, -182, Math.PI], [8, -202, 0], [-64, -202, Math.PI],
+    [120, 74, 0], [-136, 74, Math.PI],
   ];
   for (const [x, z, h] of spots) spawnParkedCar(scene, x, z, h);
 }

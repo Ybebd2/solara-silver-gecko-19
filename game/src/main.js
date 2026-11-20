@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { S, WORLD, WEAPONS, RADIO, CREW, clamp, lerp, rankFor } from './config.js';
 import { keys, pressed, mouse, initInput, endFrameInput } from './input.js';
-import { buildWorld } from './world.js';
+import { buildWorld, worldTick, collectiblesTick, geckoCount, geckoTotal } from './world.js';
 import { buildVehicles, trafficTick, nearestCar, enterCar, exitCar, driveTick, traffic } from './vehicles.js';
 import { buildPlayer, playerTick, tryFire, reloadWeapon } from './player.js';
 import { buildPolice, policeTick, addWanted, cruisers, officers } from './police.js';
@@ -25,14 +25,20 @@ let clock = null;
 let lastT = 0;
 let menuT = 0;
 
-// ---------- pedestrians: varied walkers on the sidewalks ----------
-// Pink shirt, teal hair, purple shirt, cone hat, yellow shirt — and they
-// RUN AWAY when a carjack happens nearby.
+// ---------- pedestrians: VISIBLE citizens on the sidewalks ----------
+// Round 6: the city looked empty because 28 peds were scattered over a
+// 480x480 m area and wandered off-road. Now 64 walkers live ON the
+// sidewalks (offset +/-12.5 from the road centre lines), in GROUPS of 2-4
+// walking together, scaled 1.3x so they read as people, in hot bright
+// shirts (pink, yellow, cyan, purple, orange, lime) that pop against the
+// cream sidewalk. They RUN AWAY when a carjack happens nearby.
+const PED_SHIRTS = [0xff2e63, 0xffd23a, 0x00d4ff, 0x9b59b6, 0xff5722, 0x76ff03, 0xff4081, 0xffffff];
+const ROADS = [-256, -192, -128, -64, 0, 64, 128, 192, 256];
+
 function buildPedestrians() {
-  const shirts = [0xe74c3c, 0x3498db, 0xf1c40f, 0x9b59b6, 0x1abc9c, 0xecf0f1, 0xe67e22, 0xff69b4];
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 64; i++) {
     const g = new THREE.Group();
-    const shirt = new THREE.MeshLambertMaterial({ color: shirts[i % shirts.length] });
+    const shirt = new THREE.MeshLambertMaterial({ color: PED_SHIRTS[i % PED_SHIRTS.length] });
     const skin = new THREE.MeshLambertMaterial({ color: [0xc98e6a, 0x8a5a3a, 0xe8b98a][i % 3] });
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.3), shirt);
     torso.position.y = 1.1; g.add(torso);
@@ -50,15 +56,30 @@ function buildPedestrians() {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.62, 0.17), new THREE.MeshLambertMaterial({ color: 0x2e3a4a }));
       leg.position.set(sx, 0.35, 0); g.add(leg);
     }
-    const x = -240 + Math.random() * 480;
-    const z = -240 + Math.random() * 480;
+    // blob shadow so the walker reads grounded in daylight
+    const blob = new THREE.Mesh(
+      new THREE.CircleGeometry(0.5, 14),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false })
+    );
+    blob.rotation.x = -Math.PI / 2; blob.position.y = 0.02; g.add(blob);
+    // sidewalk-bound: pick a road, a side, and a spot along it. Peds spawn
+    // in GROUPS of 2-4 sharing a road stretch so the street reads crowded.
+    const groupIdx = Math.floor(i / 3);
+    const horizontal = groupIdx % 2 === 0;
+    const road = ROADS[groupIdx % ROADS.length];
+    const side = (groupIdx % 4 < 2 ? 1 : -1) * 12.5;
+    const along = -240 + ((groupIdx * 37 + (i % 3) * 4) % 480);
+    const x = horizontal ? along : road + side;
+    const z = horizontal ? road + side : along;
     g.position.set(x, 0, z);
+    g.scale.setScalar(1.45); // BIG enough to read as people from the screenshot camera
     scene.add(g);
     pedestrians.push({
       group: g, x, z,
-      heading: Math.random() * Math.PI * 2,
+      heading: horizontal ? (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2) : (Math.random() < 0.5 ? 0 : Math.PI),
       speed: 1 + Math.random() * 1.2,
       tx: x, tz: z, wait: 0, fleeUntil: 0,
+      horizontal, road, side, dir: Math.random() < 0.5 ? 1 : -1,
     });
   }
   // scooter riders cruising the roads (pink scooter + rider)
@@ -120,24 +141,53 @@ function pedestriansTick(dt) {
       continue;
     }
     if (p.wait > 0) { p.wait -= dt; continue; }
-    const dx = p.tx - p.x, dz = p.tz - p.z;
-    const d = Math.hypot(dx, dz);
-    if (d < 1.5) {
-      // pick a new nearby stroll target
-      p.tx = clamp(p.x + (Math.random() - 0.5) * 90, -250, 250);
-      p.tz = clamp(p.z + (Math.random() - 0.5) * 90, -250, 250);
-      if (Math.random() < 0.3) p.wait = 1 + Math.random() * 3;
-      continue;
+    // sidewalk stroll: walk along the sidewalk, reverse at the city edge
+    if (p.horizontal) {
+      p.x += p.dir * p.speed * dt;
+      if (p.x > 300) { p.x = 300; p.dir = -1; }
+      if (p.x < -300) { p.x = -300; p.dir = 1; }
+      p.heading = p.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+    } else {
+      p.z += p.dir * p.speed * dt;
+      if (p.z > 300) { p.z = 300; p.dir = -1; }
+      if (p.z < -300) { p.z = -300; p.dir = 1; }
+      p.heading = p.dir > 0 ? 0 : Math.PI;
     }
-    const want = Math.atan2(dx, dz);
-    let dh = want - p.heading;
-    while (dh > Math.PI) dh -= Math.PI * 2;
-    while (dh < -Math.PI) dh += Math.PI * 2;
-    p.heading += clamp(dh, -2.5 * dt, 2.5 * dt);
-    p.x += Math.sin(p.heading) * p.speed * dt;
-    p.z += Math.cos(p.heading) * p.speed * dt;
+    if (Math.random() < dt * 0.02) p.wait = 1 + Math.random() * 2; // occasional pause
     p.group.position.set(p.x, Math.abs(Math.sin(S.time * 6 + p.x)) * 0.03, p.z);
     p.group.rotation.y = p.heading;
+  }
+}
+
+// Stage pedestrians for a screenshot: move the first N walkers onto the
+// sidewalks right next to the shot location so citizens are GUARANTEED in
+// frame (groups of 2-3, both sides of the road).
+function stagePedsForShot(n) {
+  const spots = [];
+  if (n === 2) {
+    // drive shot: road z=64, sidewalks at z=51.5 / 76.5, ahead of the car
+    for (let i = 0; i < 12; i++) {
+      const side = i % 2 === 0 ? 51.5 : 76.5;
+      spots.push({ x: -52 + (i >> 1) * 7 + (i % 3), z: side });
+    }
+  } else if (n === 3) {
+    // Kai on foot at (-40,-184): sidewalk z=-179.5 right beside him
+    for (let i = 0; i < 6; i++) spots.push({ x: -46 + i * 3.5, z: -179.5 });
+    for (let i = 0; i < 4; i++) spots.push({ x: -30 + i * 3, z: -204.5 });
+  } else if (n === 4) {
+    // chase: road z=-192, sidewalks at -179.5 / -204.5 near the player
+    for (let i = 0; i < 10; i++) {
+      const side = i % 2 === 0 ? -179.5 : -204.5;
+      spots.push({ x: -28 + (i >> 1) * 8, z: side });
+    }
+  }
+  for (let i = 0; i < spots.length && i < pedestrians.length; i++) {
+    const p = pedestrians[i];
+    p.x = spots[i].x; p.z = spots[i].z;
+    p.horizontal = true; p.road = Math.round(spots[i].z / 64) * 64; p.side = 12.5;
+    p.dir = 1; p.wait = 9999; // hold the pose for the shot
+    p.group.position.set(p.x, 0, p.z);
+    p.group.rotation.y = Math.PI / 2;
   }
 }
 
@@ -179,7 +229,7 @@ function cameraTick(dt) {
     camera.lookAt(fixedCam.camLook[0], fixedCam.camLook[1], fixedCam.camLook[2]);
     return;
   }
-  // start menu: slow cinematic orbit over downtown — towers, beach, golden hour
+  // start menu: slow cinematic orbit over downtown — towers, beach, bright day
   if (!S.started) {
     menuT += dt;
     const a = menuT * 0.05;
@@ -336,6 +386,11 @@ function loop(t) {
     pedestriansTick(dt);
     policeTick(dt);
     missionsTick(dt);
+    worldTick(dt, S.time);
+    if (collectiblesTick(S.px, S.pz)) {
+      toast('GOLDEN GECKO ' + geckoCount() + '/' + geckoTotal() + ' — nice find, Kai');
+      sfxCash();
+    }
     if (S.wanted === 0 && S.health < 100) S.health = Math.min(100, S.health + 2 * dt);
     if (S.car && S.car.health <= 0) {
       toast('Your ride is wrecked — bail out!');
@@ -369,21 +424,22 @@ function init() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(0xffb36b);
+  renderer.setClearColor(0x35a3e8);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xff9e57);
-  scene.fog = new THREE.Fog(0xff9e57, 120, 620);
+  scene.background = new THREE.Color(0x35a3e8);
+  scene.fog = new THREE.Fog(0x8ec8f0, 150, 700);
 
   camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 1500);
   camera.position.set(S.px + 8, 4, S.pz + 8);
   camYaw = S.heading + Math.PI;
 
-  // golden-hour lighting: warm sun + soft sky fill
-  const sun = new THREE.DirectionalLight(0xffc98a, 2.4);
-  sun.position.set(-180, 90, -120);
+  // BRIGHT DAYTIME lighting (~14:00): high white sun + blue sky fill, so the
+  // city's colours actually show instead of drowning in a dusk-orange wash.
+  const sun = new THREE.DirectionalLight(0xfff3d6, 2.8);
+  sun.position.set(-180, 150, -100);
   scene.add(sun);
-  const sky = new THREE.HemisphereLight(0xffd9a0, 0x4a3a3a, 1.1);
+  const sky = new THREE.HemisphereLight(0x7ec0ee, 0x3f7d4a, 1.25);
   scene.add(sky);
 
   raycaster = new THREE.Raycaster();
@@ -405,7 +461,10 @@ function init() {
 
   // screenshot setups (?shot=1..4) — also auto-starts the game
   const shot = getShotParam();
-  if (shot > 0) fixedCam = applyShot(shot);
+  if (shot > 0) {
+    fixedCam = applyShot(shot);
+    stagePedsForShot(shot); // citizens guaranteed in frame for the shot
+  }
 
   window.__solara = {
     version: VERSION,

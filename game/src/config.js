@@ -40,7 +40,7 @@ export const RANKS = [
 export const RADIO = [
   { name: 'PUERTO 88.3',  desc: 'latin gold',  hue: 0, song: 'Celia Cruz — Quimbara' },
   { name: 'CELESTE 98.1', desc: 'synthwave',   hue: 1, song: 'Midnight Drive — Neon Palms' },
-  { name: 'SOLARA 98.3',  desc: 'golden hour', hue: 2, song: 'Kai & The Coast — Golden Hour' },
+  { name: 'SOLARA 98.3',  desc: 'daytime', hue: 2, song: 'Kai & The Coast — Bright Day' },
 ];
 
 export const CREW = {

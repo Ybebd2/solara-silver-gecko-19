@@ -45,7 +45,7 @@ function packTraffic(cx, cz, roadZ) {
     if (placed >= 7) break;
     const lane = placed % 2 === 0 ? 2.5 : 7.5;
     const side = placed % 4 < 2 ? 1 : -1;
-    const along = cx + 18 + placed * 9; // ahead (east) of the player car
+    const along = cx + 18 + placed * 6; // bumper-to-bumper: 6 m spacing, cars ~4.5 m long
     c.group.position.set(along, 0, roadZ + side * lane);
     c.group.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
     c.horizontal = true;
