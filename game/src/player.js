@@ -23,11 +23,11 @@ export function buildPlayer(scene) {
   kai = new THREE.Group();
 
   const skin = new THREE.MeshLambertMaterial({ color: 0xc98e6a });
-  const jacket = new THREE.MeshLambertMaterial({ color: 0x2b4a6f });
+  const jacket = new THREE.MeshLambertMaterial({ color: 0x2f6fb4 });
   const jeans = new THREE.MeshLambertMaterial({ color: 0x2e3a4a });
   const hair = new THREE.MeshLambertMaterial({ color: 0x1a1210 });
 
-  // torso (open jacket, golden-hour blue)
+  // torso (open jacket, bright navy so Kai pops in daylight)
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.34), jacket);
   torso.position.y = 1.18;
   kai.add(torso);
@@ -63,16 +63,21 @@ export function buildPlayer(scene) {
     shoe.position.set(sx, 0.05, 0.05);
     kai.add(shoe);
   }
-  // VESPER pistol in the right hand — silver, oversized so it reads clearly
-  // as a weapon in screenshots (Kai on foot, weapon visible)
-  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.22, 0.5), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, metalness: 0.9, roughness: 0.25 }));
-  gun.position.set(0.42, 0.95, 0.3);
+  // VESPER pistol in the right hand — bright silver (low metalness so it
+  // stays bright in daylight, never a dark blob), oversized so it reads
+  // clearly as a weapon in screenshots (Kai on foot, weapon visible)
+  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.62), new THREE.MeshStandardMaterial({ color: 0xf5f5f5, metalness: 0.2, roughness: 0.35 }));
+  gun.position.set(0.58, 0.95, 0.38);
   kai.add(gun);
+  // dark grip under the barrel's rear — the L-shape reads as a pistol, not a bar
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.24, 0.16), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
+  grip.position.set(0.58, 0.8, 0.18);
+  kai.add(grip);
   muzzle = new THREE.Mesh(
     new THREE.SphereGeometry(0.12, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0 })
   );
-  muzzle.position.set(0.4, 0.95, 0.45);
+  muzzle.position.set(0.58, 0.95, 0.66);
   kai.add(muzzle);
 
   kai.position.set(S.px, 0, S.pz);

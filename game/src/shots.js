@@ -42,7 +42,7 @@ function putInNearestCar() {
 function packTraffic(cx, cz, roadZ) {
   let placed = 0;
   for (const c of traffic) {
-    if (placed >= 7) break;
+    if (placed >= 8) break;
     const lane = placed % 2 === 0 ? 2.5 : 7.5;
     const side = placed % 4 < 2 ? 1 : -1;
     const along = cx + 18 + placed * 6; // bumper-to-bumper: 6 m spacing, cars ~4.5 m long
@@ -91,15 +91,16 @@ export function applyShot(n) {
     return { camPos: [-64, 6, 78], camLook: [-20, 2, 64] };
   }
   if (n === 3) {
-    // KAI ON FOOT: camera on his gun side (west) so he is BIG and the silver
-    // VESPER pistol is visible; mission 1 active, 2 stars, Lupe's dialogue.
+    // KAI ON FOOT: camera dead on his gun side (due west, level) so Kai is
+    // in right profile and the silver VESPER pistol — held on his right,
+    // pointing forward — reads at full length, silhouetted against the road.
     S.px = -40; S.pz = -184; S.heading = Math.PI;
     S.missionIdx = 0;
     startMission();
     showDialogue('LUPE', 'Meet me at MO\u2019S, Kai. First job — don\u2019t keep me waiting.');
     S.dialogueUntil = 9999; // keep Lupe's dialogue + portrait in frame
     addWanted(2, 'shot');
-    return { camPos: [-44.5, 1.7, -185.5], camLook: [-39, 1.3, -184] };
+    return { camPos: [-46, 1.7, -184], camLook: [-39, 1.25, -184] };
   }
   if (n === 4) {
     // NEON CHASE: 3 stars, helicopter + cruisers closing in, response panel

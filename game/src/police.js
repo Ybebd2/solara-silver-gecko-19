@@ -113,12 +113,12 @@ function buildBeam() {
   geo.translate(0, -15, 0); // apex at origin, base 30 m below
   const cone = new THREE.Mesh(
     geo,
-    new THREE.MeshBasicMaterial({ color: 0xfff6c9, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xfff6c9, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })
   );
   beam.add(cone);
   const pool = new THREE.Mesh(
     new THREE.CircleGeometry(6, 24),
-    new THREE.MeshBasicMaterial({ color: 0xfff6c9, transparent: true, opacity: 0.55, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xfff6c9, transparent: true, opacity: 0.65, depthWrite: false })
   );
   pool.rotation.x = -Math.PI / 2;
   return { beam, pool };
@@ -443,6 +443,9 @@ export function policeUnits() {
     const status = d < 45 ? 'FIRING' : S.seen ? 'PURSUIT' : 'SEARCHING';
     units.push({ name: 'FOOT-' + (i + 1), dist: Math.round(d), status });
   }
-  if (S.wanted >= 3) units.push({ name: 'HELI-1', dist: 0, status: 'PURSUIT' });
+  if (S.wanted >= 3) {
+    const hd = heli ? Math.round(Math.hypot(heli.group.position.x - S.px, heli.group.position.z - S.pz)) : 0;
+    units.push({ name: 'HELI-1', dist: hd, status: 'PURSUIT' });
+  }
   return units;
 }

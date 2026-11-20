@@ -171,6 +171,7 @@ export function missionsTick(dt) {
     case 'escape':
       // reach the hideout only once the heat is off
       if (near && S.wanted === 0) completeMission();
+      else if (near) { S.message = 'LOSE THE HEAT first — reach the hideout clean'; S.messageUntil = S.time + 2; }
       break;
     case 'finale':
       if (S.missionStage === 0) {

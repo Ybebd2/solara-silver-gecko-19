@@ -7,7 +7,7 @@ import { S, DISTRICTS, WORLD, WEAPONS, RADIO, fmtCash, fmtClock, districtAt } fr
 import { currentMission, missionDistance, missionTarget } from './missions.js';
 import { cruisers, officers, policeUnits } from './police.js';
 import { nearestCar } from './vehicles.js';
-import { geckoCount, geckoTotal } from './world.js';
+import { geckoCount, geckoTotal, geckoSpots } from './world.js';
 
 let els = {};
 let minimap = null;
@@ -291,6 +291,13 @@ function drawCityMap(g, size, cx, cz, half, showPolice) {
     const [tx, ty] = toMap(t[0], t[1]);
     g.fillStyle = '#ffd23a';
     g.beginPath(); g.moveTo(tx, ty - 10); g.lineTo(tx + 8, ty + 7); g.lineTo(tx - 8, ty + 7); g.closePath(); g.fill();
+  }
+  // golden gecko collectibles (untaken only, small gold dots)
+  g.fillStyle = '#ffd23a';
+  for (const sp of geckoSpots()) {
+    if (sp.taken) continue;
+    const [gx, gy] = toMap(sp.x, sp.z);
+    g.beginPath(); g.arc(gx, gy, 3, 0, Math.PI * 2); g.fill();
   }
   // police (only when Kiki's lookout is live, or on the big map always when wanted)
   if (showPolice) {

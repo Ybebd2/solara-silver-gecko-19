@@ -16,8 +16,9 @@ const SCALES = [
   [0, 3, 5, 7, 10, 12, 15],   // PUERTO 88.3 — minor latin
   [0, 2, 3, 7, 8, 12, 14],    // CELESTE 98.1 — synthwave
   [0, 4, 5, 7, 9, 12, 16],    // SOLARA 98.3 — golden major
+  [0, 2, 5, 7, 10, 12, 14],   // NEON 101.5 — dorian night drive
 ];
-const ROOTS = [220, 196, 246.9];
+const ROOTS = [220, 196, 246.9, 174.6];
 
 export function ensureAudio() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }

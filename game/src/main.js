@@ -9,7 +9,7 @@ import { buildWorld, worldTick, collectiblesTick, geckoCount, geckoTotal } from 
 import { buildVehicles, trafficTick, nearestCar, enterCar, exitCar, driveTick, traffic } from './vehicles.js';
 import { buildPlayer, playerTick, tryFire, reloadWeapon } from './player.js';
 import { buildPolice, policeTick, addWanted, cruisers, officers } from './police.js';
-import { buildMissions, missionsTick, currentMission, startMission, atMissionStart } from './missions.js';
+import { buildMissions, missionsTick, currentMission, missionTarget, startMission, atMissionStart } from './missions.js';
 import { buildHUD, hudTick, toast, resetMapView } from './hud.js';
 import { ensureAudio, audioTick, sfxClick, sfxCash } from './audio.js';
 import { getShotParam, applyShot } from './shots.js';
@@ -216,7 +216,7 @@ function loadGame() {
     S.weaponIdx = d.weaponIdx || 0;
     S.ammo = WEAPONS[S.weaponIdx].mag;
     S.over = false; S.missionActive = false;
-    toast('Save loaded (F9)');
+    toast('Save loaded');
   } catch (e) { toast('Load failed'); }
 }
 

@@ -662,6 +662,7 @@ export function buildWorld(scene) {
 const geckos = [];
 export function geckoCount() { return geckos.filter((g) => g.taken).length; }
 export function geckoTotal() { return geckos.length; }
+export function geckoSpots() { return geckos.map((g) => ({ x: g.x, z: g.z, taken: g.taken })); }
 
 function buildCollectibles(scene) {
   const spots = [];
@@ -687,7 +688,7 @@ function buildCollectibles(scene) {
     // light pillar so it is visible from a distance
     const pillar = new THREE.Mesh(
       new THREE.CylinderGeometry(0.7, 1.1, 9, 10, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false })
     );
     pillar.position.y = 4.5; g.add(pillar);
     g.position.set(spots[i].x, 0, spots[i].z);

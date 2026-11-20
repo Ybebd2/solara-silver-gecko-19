@@ -263,9 +263,9 @@ function spawnParkedCar(scene, x, z, heading) {
 
 export function buildVehicles(scene) {
   sceneRef = scene;
-  // dense varied traffic: sedans, 2 taxis, 2 boxy vans, 2 sports cars,
+  // dense varied traffic: 18 sedans, 2 taxis, 2 boxy vans, 2 sports cars,
   // 2 white police cruisers on patrol
-  for (let i = 0; i < 16; i++) spawnTrafficCar(scene);
+  for (let i = 0; i < 18; i++) spawnTrafficCar(scene);
   spawnTrafficCar(scene, { taxi: true });
   spawnTrafficCar(scene, { taxi: true });
   spawnTrafficCar(scene, { van: true });
