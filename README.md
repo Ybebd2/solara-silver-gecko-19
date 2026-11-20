@@ -8,18 +8,20 @@ Entry by **@silver-gecko-19-6487** for the [gta6-01 bounty on make.fun](https://
 
 ## What is SOLARA?
 
-A golden-hour open-world crime game set in a coastal city. You are **Kai Mercer**,
+A bright-daytime open-world crime game set in a coastal city. You are **Kai Mercer**,
 a driver for hire. **Lupe** has work for you — an 8-job chain across 7 districts,
 from a first fix at MO'S Diner to the big Solara Job at the bank. Jack cars, lose
-the heat, climb from **ROOKIE** to **FIXER**.
+the heat, climb from **ROOKIE** to **FIXER**. 20 **Golden Geckos** hide around the
+city — find them all.
 
 ## The city
 
 7 districts: Marina Bay, Old Port, Downtown, Neon Row, Palm Heights, Dockside,
-and Solara Beach. A road grid full of traffic, pedestrians on the sidewalks,
-palms along the boardwalk, a marina with boats, and a neon storefront row —
-MO'S, SOLARA, PAWN, DINER, MOTEL — glowing over the streets. The sun hangs low
-over the ocean to the west.
+and Solara Beach. A road grid full of traffic, citizens on the sidewalks, palms
+along the boardwalk, a marina with sailboats, and a neon storefront row —
+MO'S, SOLARA, PAWN, DINER, MOTEL — glowing over the streets. The sun hangs high
+over the turquoise ocean to the west, and the gold-and-teal diamond tower marks
+downtown.
 
 ## How to play
 
@@ -31,15 +33,15 @@ over the ocean to the west.
   clock in the mission panel, and finish before time runs out.
 - **Z / X / C** — crew: **MARA / GHOST** wipes a wanted star, **SULLY / PIT CREW**
   fully repairs your car, **KIKI / LOOKOUT** reveals patrols for 20 seconds.
-- **R** — cycle the radio (PUERTO 88.3 / CELESTE 98.1 / SOLARA 98.3).
+- **R** — cycle the radio (PUERTO 88.3 / CELESTE 98.1 / SOLARA 98.3 / NEON 101.5).
 - **M** — city map (zoom with the wheel, click to set a waypoint).
-- **F8 / F9** — save / load. **P** — pause.
+- **F8 / F9** — save / autopilot (in car). **P** — pause.
 
 ## Wanted
 
 5 stars. Carjacking adds a star, so does dropping a cop. Cruisers and officers
-chase you; at 3 stars a helicopter joins with a searchlight. Break line of sight
-and the **EVADING** meter fills — at 100% you lose a star.
+chase you; at 3 stars a helicopter joins with a searchlight that tracks you from
+the sky. Break line of sight and the **EVADING** meter fills — at 100% you lose a star.
 
 ## Jobs (8)
 
@@ -50,10 +52,10 @@ and the **EVADING** meter fills — at 100% you lose a star.
 ## Run it
 
 ```sh
-node serve.ts --port 8080
+bun serve.ts --port 8080
 # open http://localhost:8080/
 ```
 
 The game is plain ES modules + vendored Three.js (`game/vendor/three/`), works
-fully offline, no network requests. Build the dossier with `node main.ts`
+fully offline, no network requests. Build the dossier with `bun main.ts`
 (`MAKEFUN_OUTPUT_DIR` to choose the output folder).

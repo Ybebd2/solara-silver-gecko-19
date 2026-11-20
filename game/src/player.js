@@ -1,194 +1,169 @@
 // SOLARA — player.js
-// Kai Mercer on foot: walk / sprint, camera-relative turning, shooting the
-// VESPER (and other weapons), muzzle flash, hit feedback.
+// Kai Mercer, the visible third-person character: bright shirt, silver
+// VESPER pistol at his hip, walk/sprint with building collision, and firing
+// with the muzzle flash AT the gun tip (z 0.72 — never inside the barrel).
 
 import * as THREE from 'three';
-import { S, WEAPONS, clamp } from './config.js';
-import { resolveCollisions } from './world.js';
+import { S, WEAPONS } from './config.js';
 import { keys } from './input.js';
-import { sfxShot, sfxHit } from './audio.js';
+import { solidAt } from './world.js';
 
-let sceneRef = null;
-let kai = null;        // group
-let legL = null, legR = null, armR = null;
-let muzzle = null;
+export let playerGroup = null;
+let flashMesh = null;
+let tracer = null;
+let flashUntil = 0;
+let lastShot = -99;
 let walkPhase = 0;
-let fireCooldown = 0;
-let reloadTimer = 0;
-
-export const shootTargets = []; // {mesh, kind, hp, onHit} — police officers, range targets
 
 export function buildPlayer(scene) {
-  sceneRef = scene;
-  kai = new THREE.Group();
-
+  const g = new THREE.Group();
+  const shirt = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
   const skin = new THREE.MeshLambertMaterial({ color: 0xc98e6a });
-  const jacket = new THREE.MeshLambertMaterial({ color: 0x2f6fb4 });
-  const jeans = new THREE.MeshLambertMaterial({ color: 0x2e3a4a });
-  const hair = new THREE.MeshLambertMaterial({ color: 0x1a1210 });
-
-  // torso (open jacket, bright navy so Kai pops in daylight)
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.34), jacket);
-  torso.position.y = 1.18;
-  kai.add(torso);
-  const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.36), new THREE.MeshLambertMaterial({ color: 0xf2e6c9 }));
-  shirt.position.y = 1.18;
-  kai.add(shirt);
-  // head + hair
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 12, 10), skin);
-  head.position.y = 1.72;
-  kai.add(head);
-  const hairM = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), hair);
-  hairM.position.y = 1.76;
-  kai.add(hairM);
-  // arms
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.62, 0.16), jacket);
-  armL.position.set(-0.4, 1.2, 0);
-  kai.add(armL);
-  armR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.62, 0.16), jacket);
-  armR.position.set(0.4, 1.2, 0);
-  kai.add(armR);
-  // legs (animated while walking)
-  legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.72, 0.2), jeans);
-  legL.geometry.translate(0, -0.36, 0);
-  legL.position.set(-0.16, 0.78, 0);
-  kai.add(legL);
-  legR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.72, 0.2), jeans);
-  legR.geometry.translate(0, -0.36, 0);
-  legR.position.set(0.16, 0.78, 0);
-  kai.add(legR);
-  // shoes
-  for (const sx of [-0.16, 0.16]) {
-    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.36), new THREE.MeshLambertMaterial({ color: 0xf5f5f5 }));
-    shoe.position.set(sx, 0.05, 0.05);
-    kai.add(shoe);
-  }
-  // VESPER pistol in the right hand — bright silver (low metalness so it
-  // stays bright in daylight, never a dark blob), oversized so it reads
-  // clearly as a weapon in screenshots (Kai on foot, weapon visible)
-  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.62), new THREE.MeshStandardMaterial({ color: 0xf5f5f5, metalness: 0.2, roughness: 0.35 }));
-  gun.position.set(0.58, 0.95, 0.38);
-  kai.add(gun);
-  // dark grip under the barrel's rear — the L-shape reads as a pistol, not a bar
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.24, 0.16), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
-  grip.position.set(0.58, 0.8, 0.18);
-  kai.add(grip);
-  muzzle = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 8, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0 })
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.3), shirt);
+  torso.position.y = 1.1;
+  g.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), skin);
+  head.position.y = 1.62;
+  g.add(head);
+  const hair = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5),
+    new THREE.MeshLambertMaterial({ color: 0x2a1a0a })
   );
-  muzzle.position.set(0.58, 0.95, 0.72);
-  kai.add(muzzle);
+  hair.position.y = 1.66;
+  g.add(hair);
+  // arms
+  for (const sx of [-0.34, 0.34]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.55, 0.14), shirt);
+    arm.position.set(sx, 1.1, 0.05);
+    g.add(arm);
+  }
+  // legs
+  for (const sx of [-0.14, 0.14]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.62, 0.17), new THREE.MeshLambertMaterial({ color: 0x2e3a4a }));
+    leg.position.set(sx, 0.35, 0);
+    leg.name = sx < 0 ? 'legL' : 'legR';
+    g.add(leg);
+  }
+  // silver VESPER pistol, holstered bright at his right hip — visible in
+  // profile shots so the weapon reads without a close-up.
+  const gun = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.14, 0.5),
+    new THREE.MeshLambertMaterial({ color: 0xd7dde3, emissive: 0x555555 })
+  );
+  gun.position.set(0.32, 0.95, 0.12);
+  gun.name = 'vesper';
+  g.add(gun);
+  // blob shadow so Kai reads grounded in daylight
+  const blob = new THREE.Mesh(
+    new THREE.CircleGeometry(0.5, 14),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false })
+  );
+  blob.rotation.x = -Math.PI / 2;
+  blob.position.y = 0.02;
+  g.add(blob);
 
-  kai.position.set(S.px, 0, S.pz);
-  scene.add(kai);
-  return kai;
+  g.position.set(S.px, 0, S.pz);
+  scene.add(g);
+  playerGroup = g;
+
+  // muzzle flash: a small bright star at the gun tip, hidden until fired
+  flashMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xfff2a0 })
+  );
+  flashMesh.visible = false;
+  scene.add(flashMesh);
+  // tracer line from the gun to the hit point
+  const tracerGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  tracer = new THREE.Line(tracerGeo, new THREE.LineBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.9 }));
+  tracer.visible = false;
+  scene.add(tracer);
 }
 
 export function playerTick(dt, camera) {
-  if (!kai) return;
-  fireCooldown = Math.max(0, fireCooldown - dt);
-  if (reloadTimer > 0) {
-    reloadTimer -= dt;
-    if (reloadTimer <= 0) {
-      const w = WEAPONS[S.weaponIdx];
-      const need = w.mag - S.ammo;
-      const take = Math.min(need, S.reserve);
-      S.ammo += take; S.reserve -= take;
-    }
-  }
-
-  if (S.inCar) { kai.visible = false; return; }
-  kai.visible = true;
-
-  const w = WEAPONS[S.weaponIdx];
-  // --- movement: A/D turn, W/S forward/back, Shift sprint ---
-  const turn = (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0) - (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0);
-  S.heading += turn * 2.4 * dt;
-  const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
+  if (!playerGroup) return;
+  const sprint = keys.ShiftLeft || keys.ShiftRight;
   const speed = sprint ? 10 : 6.4;
-  let move = 0;
-  if (keys['KeyW'] || keys['ArrowUp']) move += 1;
-  if (keys['KeyS'] || keys['ArrowDown']) move -= 0.55;
-  const vx = Math.sin(S.heading) * speed * move;
-  const vz = Math.cos(S.heading) * speed * move;
-  const p = resolveCollisions(S.px + vx * dt, S.pz + vz * dt, 0.6);
-  const moved = Math.hypot(p.x - S.px, p.z - S.pz);
-  S.px = p.x; S.pz = p.z;
-  S.speed = moved / Math.max(dt, 0.001);
-
-  // walk-cycle animation (legs swing, slight bob) — smooth, no vibration
-  if (moved > 0.001) {
-    walkPhase += dt * (sprint ? 13 : 9);
-    const sw = Math.sin(walkPhase) * 0.55;
-    legL.rotation.x = sw; legR.rotation.x = -sw;
-    kai.position.y = Math.abs(Math.sin(walkPhase)) * 0.05;
-    armR.rotation.x = -0.5;
-  } else {
-    legL.rotation.x *= 0.8; legR.rotation.x *= 0.8;
-    kai.position.y *= 0.8;
-    armR.rotation.x *= 0.8;
+  const fwd = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  const turn = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
+  S.heading += turn * 2.4 * dt;
+  if (fwd !== 0) {
+    const nx = S.px + Math.sin(S.heading) * fwd * speed * dt;
+    const nz = S.pz + Math.cos(S.heading) * fwd * speed * dt;
+    // slide along walls: try x and z separately so a wall never traps Kai
+    if (!solidAt(nx, S.pz)) S.px = nx;
+    if (!solidAt(S.px, nz)) S.pz = nz;
+    S.px = Math.max(-315, Math.min(315, S.px));
+    S.pz = Math.max(-315, Math.min(315, S.pz));
+    walkPhase += dt * speed * 1.6;
   }
-
-  kai.position.set(S.px, kai.position.y, S.pz);
-  kai.rotation.y = S.heading;
-  if (muzzle) muzzle.material.opacity = Math.max(0, muzzle.material.opacity - dt * 9);
+  playerGroup.position.set(S.px, 0, S.pz);
+  playerGroup.rotation.y = S.heading;
+  // walk cycle: legs swing, body bobs a touch
+  const swing = fwd !== 0 ? Math.sin(walkPhase) * 0.5 : 0;
+  const legL = playerGroup.getObjectByName('legL');
+  const legR = playerGroup.getObjectByName('legR');
+  if (legL) legL.rotation.x = swing;
+  if (legR) legR.rotation.x = -swing;
+  playerGroup.position.y = fwd !== 0 ? Math.abs(Math.sin(walkPhase)) * 0.04 : 0;
+  // muzzle flash expires fast
+  if (flashMesh && S.time > flashUntil) {
+    flashMesh.visible = false;
+    tracer.visible = false;
+  }
 }
 
 export function tryFire(camera, raycaster) {
   const w = WEAPONS[S.weaponIdx];
-  if (fireCooldown > 0 || reloadTimer > 0) return false;
   if (w.kind === 'melee') {
-    fireCooldown = w.rate;
-    return true;
+    // fists: a short swing, no ammo
+    if (S.time - lastShot < w.rate) return;
+    lastShot = S.time;
+    return;
   }
   if (S.ammo <= 0) {
-    // auto-reload when the mag is dry
-    if (S.reserve > 0) reloadTimer = 1.1;
-    return false;
+    if (S.time - lastShot > 0.5) { lastShot = S.time; }
+    return;
   }
-  fireCooldown = w.rate;
-  S.ammo--;
-  S.shotsFired++;
-  sfxShot();
-  if (muzzle) muzzle.material.opacity = 1;
+  if (S.time - lastShot < w.rate) return;
+  lastShot = S.time;
+  S.ammo -= 1;
 
-  // hitscan from the camera centre
+  // raycast from the camera centre to find the hit point. Never let the
+  // ray stop on Kai himself, the muzzle flash, or the tracer line — those
+  // sit right in front of the camera and would eat the shot.
   raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-  raycaster.far = w.range;
-  const meshes = shootTargets.map((t) => t.mesh);
-  const hits = raycaster.intersectObjects(meshes, true);
-  if (hits.length > 0) {
-    let obj = hits[0].object;
-    while (obj && !obj.userData.targetRef) obj = obj.parent;
-    if (obj && obj.userData.targetRef) {
-      const t = obj.userData.targetRef;
-      t.hp -= w.damage;
-      S.hits++;
-      sfxHit();
-      if (t.onHit) t.onHit(t);
-    }
+  const hit = raycaster.intersectObjects(camera.parent ? camera.parent.children : [], true);
+  let hitPoint = null;
+  for (const h of hit) {
+    if (h.object === flashMesh || h.object === tracer) continue;
+    if (h.object === playerGroup || playerGroup.children.includes(h.object)) continue;
+    if (h.distance <= w.range) { hitPoint = h.point; break; }
   }
-  if (S.ammo === 0 && S.reserve > 0) reloadTimer = 1.1;
-  return true;
+  if (!hitPoint) {
+    hitPoint = raycaster.ray.at(w.range, new THREE.Vector3());
+  }
+
+  // muzzle flash AT the gun tip: local (0.32, 1.25, 0.72) on Kai — the gun
+  // front tip is 0.69, so 0.72 puts the flash just past the muzzle.
+  const tipLocal = new THREE.Vector3(0.32, 1.25, 0.72);
+  const tipWorld = playerGroup.localToWorld(tipLocal.clone());
+  flashMesh.position.copy(tipWorld);
+  flashMesh.visible = true;
+  flashUntil = S.time + 0.06;
+  const pos = tracer.geometry.attributes.position;
+  pos.setXYZ(0, tipWorld.x, tipWorld.y, tipWorld.z);
+  pos.setXYZ(1, hitPoint.x, hitPoint.y, hitPoint.z);
+  pos.needsUpdate = true;
+  tracer.visible = true;
 }
 
 export function reloadWeapon() {
   const w = WEAPONS[S.weaponIdx];
-  if (reloadTimer > 0 || S.ammo >= w.mag || S.reserve <= 0) return;
-  reloadTimer = 1.1;
-}
-
-export function addShootTarget(mesh, kind, hp, onHit) {
-  const t = { mesh, kind, hp, onHit };
-  mesh.userData.targetRef = t;
-  mesh.traverse((o) => { o.userData.targetRef = t; });
-  shootTargets.push(t);
-  return t;
-}
-
-export function removeShootTarget(t) {
-  const i = shootTargets.indexOf(t);
-  if (i >= 0) shootTargets.splice(i, 1);
-  if (t.mesh.parent) t.mesh.parent.remove(t.mesh);
+  if (w.kind === 'melee') return;
+  const need = w.mag - S.ammo;
+  if (need <= 0 || S.reserve <= 0) return;
+  const take = Math.min(need, S.reserve);
+  S.ammo += take;
+  S.reserve -= take;
 }

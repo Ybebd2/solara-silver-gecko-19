@@ -1,37 +1,33 @@
 // SOLARA — main.js
 // Entrypoint + game loop. Builds the scene, wires every system, runs the
-// third-person camera, and exposes window.__solara for debugging.
+// third-person camera, pedestrians, autopilot, save/load, and the debug hook.
 
 import * as THREE from 'three';
 import { S, WORLD, WEAPONS, RADIO, CREW, clamp, lerp, rankFor } from './config.js';
 import { keys, pressed, mouse, initInput, endFrameInput } from './input.js';
 import { buildWorld, worldTick, collectiblesTick, geckoCount, geckoTotal } from './world.js';
 import { buildVehicles, trafficTick, nearestCar, enterCar, exitCar, driveTick, traffic } from './vehicles.js';
-import { buildPlayer, playerTick, tryFire, reloadWeapon } from './player.js';
+import { buildPlayer, playerTick, tryFire, reloadWeapon, playerGroup } from './player.js';
 import { buildPolice, policeTick, addWanted, cruisers, officers } from './police.js';
 import { buildMissions, missionsTick, currentMission, missionTarget, startMission, atMissionStart } from './missions.js';
-import { buildHUD, hudTick, toast, resetMapView } from './hud.js';
+import { buildHUD, hudTick, toast, showDialogue, resetMapView } from './hud.js';
 import { ensureAudio, audioTick, sfxClick, sfxCash } from './audio.js';
 import { getShotParam, applyShot } from './shots.js';
 
-const VERSION = 'solara-fresh-1.0';
+const VERSION = 'solara-r7-fresh-1.0';
 
 let renderer, scene, camera, raycaster;
-let camYaw = 0, camPitch = 0.32, camDist = 9;
-let camYawOffset = 0;
+let camYaw = 0, camPitch = 0.32, camYawOffset = 0;
 let fixedCam = null;
 let pedestrians = [];
-let clock = null;
 let lastT = 0;
 let menuT = 0;
 
 // ---------- pedestrians: VISIBLE citizens on the sidewalks ----------
-// Round 6: the city looked empty because 28 peds were scattered over a
-// 480x480 m area and wandered off-road. Now 64 walkers live ON the
-// sidewalks (offset +/-12.5 from the road centre lines), in GROUPS of 2-4
-// walking together, scaled 1.45x so they read as people, in hot bright
-// shirts (pink, yellow, cyan, purple, orange, lime) that pop against the
-// cream sidewalk. They RUN AWAY when a carjack happens nearby.
+// 64 walkers live ON the sidewalks (offset +/-12.5 from road centre lines),
+// in GROUPS of 2-4 walking together, scaled 1.5x so they read as people, in
+// hot bright shirts that pop against the cream sidewalk. They RUN AWAY when
+// a carjack happens nearby.
 const PED_SHIRTS = [0xff2e63, 0xffd23a, 0x00d4ff, 0x9b59b6, 0xff5722, 0x76ff03, 0xff4081, 0xffffff];
 const ROADS = [-256, -192, -128, -64, 0, 64, 128, 192, 256];
 
@@ -41,29 +37,37 @@ function buildPedestrians() {
     const shirt = new THREE.MeshLambertMaterial({ color: PED_SHIRTS[i % PED_SHIRTS.length] });
     const skin = new THREE.MeshLambertMaterial({ color: [0xc98e6a, 0x8a5a3a, 0xe8b98a][i % 3] });
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.3), shirt);
-    torso.position.y = 1.1; g.add(torso);
+    torso.position.y = 1.1;
+    g.add(torso);
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), skin);
-    head.position.y = 1.62; g.add(head);
-    // variety: teal hair on some, a cone hat on others
+    head.position.y = 1.62;
+    g.add(head);
     if (i % 5 === 0) {
-      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), new THREE.MeshLambertMaterial({ color: 0x1abc9c }));
-      hair.position.y = 1.66; g.add(hair);
+      const hair = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5),
+        new THREE.MeshLambertMaterial({ color: 0x1abc9c })
+      );
+      hair.position.y = 1.66;
+      g.add(hair);
     } else if (i % 7 === 0) {
       const hat = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.42, 10), new THREE.MeshLambertMaterial({ color: 0xf1c40f }));
-      hat.position.y = 1.86; g.add(hat);
+      hat.position.y = 1.86;
+      g.add(hat);
     }
     for (const sx of [-0.14, 0.14]) {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.62, 0.17), new THREE.MeshLambertMaterial({ color: 0x2e3a4a }));
-      leg.position.set(sx, 0.35, 0); g.add(leg);
+      leg.position.set(sx, 0.35, 0);
+      g.add(leg);
     }
-    // blob shadow so the walker reads grounded in daylight
     const blob = new THREE.Mesh(
       new THREE.CircleGeometry(0.5, 14),
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false })
     );
-    blob.rotation.x = -Math.PI / 2; blob.position.y = 0.02; g.add(blob);
-    // sidewalk-bound: pick a road, a side, and a spot along it. Peds spawn
-    // in GROUPS of 2-4 sharing a road stretch so the street reads crowded.
+    blob.rotation.x = -Math.PI / 2;
+    blob.position.y = 0.02;
+    g.add(blob);
+    // sidewalk-bound: pick a road, a side, a spot along it. Walkers spawn in
+    // GROUPS of 2-4 sharing a road stretch so the street reads crowded.
     const groupIdx = Math.floor(i / 3);
     const horizontal = groupIdx % 2 === 0;
     const road = ROADS[groupIdx % ROADS.length];
@@ -72,33 +76,35 @@ function buildPedestrians() {
     const x = horizontal ? along : road + side;
     const z = horizontal ? road + side : along;
     g.position.set(x, 0, z);
-    g.scale.setScalar(1.5); // BIG enough to read as people from the screenshot camera
+    g.scale.setScalar(1.5);
     scene.add(g);
     pedestrians.push({
       group: g, x, z,
       heading: horizontal ? (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2) : (Math.random() < 0.5 ? 0 : Math.PI),
       speed: 1 + Math.random() * 1.2,
-      tx: x, tz: z, wait: 0, fleeUntil: 0,
+      wait: 0, fleeUntil: 0,
       horizontal, road, side, dir: Math.random() < 0.5 ? 1 : -1,
     });
   }
-  // scooter riders cruising the roads (pink scooter + rider)
+  // 2 pink scooter riders cruising the roads
   for (let i = 0; i < 2; i++) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.6), new THREE.MeshLambertMaterial({ color: 0xff69b4 }));
-    body.position.y = 0.45; g.add(body);
+    body.position.y = 0.45;
+    g.add(body);
     const rider = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.3), new THREE.MeshLambertMaterial({ color: [0xf1c40f, 0x3498db][i] }));
-    rider.position.y = 1.0; g.add(rider);
+    rider.position.y = 1.0;
+    g.add(rider);
     const rhead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), new THREE.MeshLambertMaterial({ color: 0xc98e6a }));
-    rhead.position.y = 1.45; g.add(rhead);
+    rhead.position.y = 1.45;
+    g.add(rhead);
     for (const wz of [-0.6, 0.6]) {
       const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.12, 10), new THREE.MeshLambertMaterial({ color: 0x111111 }));
       wheel.rotation.z = Math.PI / 2;
       wheel.position.set(0, 0.28, wz);
       g.add(wheel);
     }
-    const roads = [-128, -64, 0, 64, 128];
-    const road = roads[Math.floor(Math.random() * roads.length)];
+    const road = [-128, -64, 0, 64, 128][Math.floor(Math.random() * 5)];
     const horizontal = Math.random() < 0.5;
     const x = horizontal ? -200 + Math.random() * 400 : road + 7.5;
     const z = horizontal ? road + 7.5 : -200 + Math.random() * 400;
@@ -106,18 +112,16 @@ function buildPedestrians() {
     scene.add(g);
     pedestrians.push({
       group: g, x, z, heading: horizontal ? Math.PI / 2 : 0,
-      speed: 9 + Math.random() * 3, tx: x, tz: z, wait: 0, fleeUntil: 0,
+      speed: 9 + Math.random() * 3, wait: 0, fleeUntil: 0,
       scooter: true, horizontal, road,
     });
   }
 }
 
 function pedestriansTick(dt) {
-  // a fresh carjack scares nearby pedestrians into running away
   const jackFresh = S.time - S.jackedAt < 4;
   for (const p of pedestrians) {
     if (p.scooter) {
-      // scooter cruises its road, wraps around the city edge
       if (p.horizontal) {
         p.x += p.speed * dt;
         if (p.x > 310) p.x = -310;
@@ -130,7 +134,6 @@ function pedestriansTick(dt) {
       continue;
     }
     if (jackFresh && Math.hypot(p.x - S.px, p.z - S.pz) < 20) {
-      // run away from the player, fast
       const dx = p.x - S.px, dz = p.z - S.pz;
       const d = Math.hypot(dx, dz) || 1;
       p.heading = Math.atan2(dx, dz);
@@ -141,7 +144,6 @@ function pedestriansTick(dt) {
       continue;
     }
     if (p.wait > 0) { p.wait -= dt; continue; }
-    // sidewalk stroll: walk along the sidewalk, reverse at the city edge
     if (p.horizontal) {
       p.x += p.dir * p.speed * dt;
       if (p.x > 300) { p.x = 300; p.dir = -1; }
@@ -153,29 +155,27 @@ function pedestriansTick(dt) {
       if (p.z < -300) { p.z = -300; p.dir = 1; }
       p.heading = p.dir > 0 ? 0 : Math.PI;
     }
-    if (Math.random() < dt * 0.02) p.wait = 1 + Math.random() * 2; // occasional pause
+    if (Math.random() < dt * 0.02) p.wait = 1 + Math.random() * 2;
     p.group.position.set(p.x, Math.abs(Math.sin(S.time * 6 + p.x)) * 0.03, p.z);
     p.group.rotation.y = p.heading;
   }
 }
 
-// Stage pedestrians for a screenshot: move the first N walkers onto the
+// Stage pedestrians for a screenshot: move the first walkers onto the
 // sidewalks right next to the shot location so citizens are GUARANTEED in
 // frame (groups of 2-3, both sides of the road).
 function stagePedsForShot(n) {
   const spots = [];
   if (n === 2) {
-    // drive shot: road z=64, sidewalks at z=51.5 / 76.5, ahead of the car
     for (let i = 0; i < 12; i++) {
       const side = i % 2 === 0 ? 51.5 : 76.5;
       spots.push({ x: -52 + (i >> 1) * 7 + (i % 3), z: side });
     }
   } else if (n === 3) {
-    // Kai on foot at (-40,-184): sidewalk z=-179.5 right beside him
-    for (let i = 0; i < 6; i++) spots.push({ x: -46 + i * 3.5, z: -179.5 });
-    for (let i = 0; i < 4; i++) spots.push({ x: -30 + i * 3, z: -204.5 });
+    for (let i = 0; i < 4; i++) spots.push({ x: -52 + i * 2, z: -179.5 });
+    for (let i = 0; i < 4; i++) spots.push({ x: -28 + i * 2, z: -179.5 });
+    for (let i = 0; i < 4; i++) spots.push({ x: -48 + i * 3, z: -204.5 });
   } else if (n === 4) {
-    // chase: road z=-192, sidewalks at -179.5 / -204.5 near the player
     for (let i = 0; i < 10; i++) {
       const side = i % 2 === 0 ? -179.5 : -204.5;
       spots.push({ x: -28 + (i >> 1) * 8, z: side });
@@ -183,9 +183,13 @@ function stagePedsForShot(n) {
   }
   for (let i = 0; i < spots.length && i < pedestrians.length; i++) {
     const p = pedestrians[i];
-    p.x = spots[i].x; p.z = spots[i].z;
-    p.horizontal = true; p.road = Math.round(spots[i].z / 64) * 64; p.side = 12.5;
-    p.dir = 1; p.wait = 9999; // hold the pose for the shot
+    p.x = spots[i].x;
+    p.z = spots[i].z;
+    p.horizontal = true;
+    p.road = Math.round(spots[i].z / 64) * 64;
+    p.side = 12.5;
+    p.dir = 1;
+    p.wait = 9999;
     p.group.position.set(p.x, 0, p.z);
     p.group.rotation.y = Math.PI / 2;
   }
@@ -223,13 +227,10 @@ function loadGame() {
 // ---------- camera ----------
 function cameraTick(dt) {
   if (fixedCam) {
-    // staged shot: snap fast to the fixed camera (the spawn camera starts
-    // ~250 m away, so a slow lerp never converges before the screenshot)
     camera.position.lerp(new THREE.Vector3(fixedCam.camPos[0], fixedCam.camPos[1], fixedCam.camPos[2]), Math.min(1, dt * 8));
     camera.lookAt(fixedCam.camLook[0], fixedCam.camLook[1], fixedCam.camLook[2]);
     return;
   }
-  // start menu: slow cinematic orbit over downtown — towers, beach, bright day
   if (!S.started) {
     menuT += dt;
     const a = menuT * 0.05;
@@ -239,16 +240,14 @@ function cameraTick(dt) {
     camera.lookAt(-80, 18, -40);
     return;
   }
-  // mouse drag orbits; otherwise the camera settles behind the heading
   camYawOffset -= mouse.dx * 0.004;
   camPitch = clamp(camPitch + mouse.dy * 0.003, 0.08, 0.9);
-  camYawOffset *= Math.pow(0.12, dt); // ease back to behind-view
+  camYawOffset *= Math.pow(0.12, dt);
   const targetYaw = S.heading + Math.PI + camYawOffset;
   let dy = targetYaw - camYaw;
   while (dy > Math.PI) dy -= Math.PI * 2;
   while (dy < -Math.PI) dy += Math.PI * 2;
   camYaw += dy * Math.min(1, dt * 4);
-
   const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
   const dist = S.inCar ? 11.5 : 9.5;
   const height = S.inCar ? 4.2 : 3.4;
@@ -262,7 +261,6 @@ function cameraTick(dt) {
 }
 
 // ---------- autopilot: drives the car toward the mission mark ----------
-// Steers along the road grid: head for the target's nearest road, then along it.
 function autopilotKeys() {
   const car = S.car;
   if (!car) return null;
@@ -270,23 +268,24 @@ function autopilotKeys() {
   if (!t) return null;
   const dx = t[0] - car.x, dz = t[1] - car.z;
   const dist = Math.hypot(dx, dz);
-  if (dist < 8) { S.autopilot = false; toast('AUTOPILOT — arrived at the mark'); return null; }
+  if (dist < 8) {
+    S.autopilot = false;
+    toast('AUTOPILOT — arrived at the mark');
+    return null;
+  }
   const wantHeading = Math.atan2(dx, dz);
   let dh = wantHeading - car.heading;
   while (dh > Math.PI) dh -= Math.PI * 2;
   while (dh < -Math.PI) dh += Math.PI * 2;
-  // grid-friendly: prefer moving along the axis with the bigger remaining gap
   const k = { KeyW: true, KeyS: false, KeyA: false, KeyD: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
   if (dh > 0.12) k.KeyA = true;
   else if (dh < -0.12) k.KeyD = true;
   if (dist < 20) k.KeyW = Math.abs(dh) < 0.5;
   return k;
 }
+
 function handleKeys() {
-  if (pressed['KeyP']) {
-    S.paused = !S.paused;
-    sfxClick();
-  }
+  if (pressed['KeyP']) { S.paused = !S.paused; sfxClick(); }
   if (pressed['KeyM']) {
     S.mapOpen = !S.mapOpen;
     if (S.mapOpen) resetMapView();
@@ -316,7 +315,6 @@ function handleKeys() {
       sfxClick();
     }
   }
-  // crew abilities
   if (pressed[CREW.MARA.key] && S.crewCd.MARA <= 0) {
     if (S.wanted > 0) {
       S.wanted = Math.max(0, S.wanted - 1);
@@ -337,7 +335,6 @@ function handleKeys() {
     S.crewCd.KIKI = CREW.KIKI.cooldown;
     toast('KIKI / LOOKOUT — patrols revealed for 20s');
   }
-  // enter / exit car
   if (pressed['KeyF']) {
     if (S.inCar) {
       S.autopilot = false;
@@ -346,24 +343,72 @@ function handleKeys() {
       const cand = nearestCar(S.px, S.pz);
       if (cand) {
         enterCar(cand);
-        S.jackedAt = S.time; // nearby pedestrians run away
+        S.jackedAt = S.time;
         addWanted(1, 'carjack');
         toast('Carjacked! +1 wanted star — lose the heat');
       }
     }
   }
-  // start a mission
   if (pressed['KeyE'] && atMissionStart()) {
     startMission();
     const m = currentMission();
     toast('JOB STARTED — ' + m.title + ' · ' + m.giver + ' · ' + Math.round(m.time / 60) + ' min on the clock');
   }
-  // click to fire
   if (mouse.clicked || (mouse.down && WEAPONS[S.weaponIdx].auto)) {
     ensureAudio();
     tryFire(camera, raycaster);
   }
   if (pressed['Space']) ensureAudio();
+}
+
+// ---------- shot staging: put the game in the exact state each shot needs ----------
+function stageShot(n) {
+  if (n === 1) return; // menu shot: leave the start screen up
+  S.started = true;
+  document.getElementById('start-screen').style.display = 'none';
+  if (n === 2) {
+    // drive: put Kai in a car on road z=64 and pack traffic around him
+    let ride = null;
+    let bestD = Infinity;
+    for (const c of traffic) {
+      const d = Math.hypot(c.x - 0, c.z - 64);
+      if (d < bestD) { bestD = d; ride = c; }
+    }
+    if (ride) {
+      ride.x = -40; ride.z = 64; ride.road = 64; ride.horizontal = true; ride.lane = 3.2; ride.dir = 1;
+      ride.heading = Math.PI / 2;
+      ride.group.position.set(-40, 0, 64);
+      enterCar(ride);
+      S.heading = Math.PI / 2;
+    }
+    // pack 6 more cars on the same road, ahead and behind
+    const spots = [-24, -8, 8, 24, 40, 56];
+    let si = 0;
+    for (const c of traffic) {
+      if (si >= spots.length) break;
+      if (c === S.car) continue;
+      c.x = spots[si]; c.z = 64 + (si % 2 === 0 ? 3.2 : -3.2); c.road = 64; c.horizontal = true;
+      c.lane = si % 2 === 0 ? 3.2 : -3.2; c.dir = 1; c.heading = Math.PI / 2;
+      c.group.position.set(c.x, 0, c.z);
+      si++;
+    }
+  }
+  if (n === 3) {
+    // mission: Kai on foot at the first beacon, job 1 active, 2 stars, Lupe talking
+    S.px = -40; S.pz = -184; S.heading = Math.PI / 2;
+    startMission();
+    S.wanted = 2;
+    S.seen = true;
+    showDialogue('LUPE', 'The package is at the docks, Kai. Get it back to MO\'S before the heat finds you.',
+      'On it, Lupe. Docks, package, back before dark.');
+    S.dialogueUntil = S.time + 12;
+  }
+  if (n === 4) {
+    // chase: 3 stars so the heli spawns with its searchlight over Neon Row
+    S.px = -40; S.pz = -192; S.heading = Math.PI / 2;
+    S.wanted = 3;
+    S.seen = true;
+  }
 }
 
 // ---------- main loop ----------
@@ -400,11 +445,13 @@ function loop(t) {
     handleKeys();
   }
 
+  // hide Kai while he drives; show him again on foot
+  if (playerGroup) playerGroup.visible = !S.inCar;
+
   cameraTick(S.paused ? 0.0001 : dt);
   audioTick(dt);
   hudTick(dt);
 
-  // debug state for headless verification
   const dbg = document.getElementById('debug');
   if (dbg) {
     dbg.textContent = JSON.stringify({
@@ -459,11 +506,12 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  // screenshot setups (?shot=1..4) — also auto-starts the game
+  // screenshot setups (?shot=1..4) — stage the state, then fix the camera
   const shot = getShotParam();
   if (shot > 0) {
+    stageShot(shot);
     fixedCam = applyShot(shot);
-    stagePedsForShot(shot); // citizens guaranteed in frame for the shot
+    stagePedsForShot(shot);
   }
 
   window.__solara = {
@@ -479,7 +527,6 @@ function init() {
     }),
   };
 
-  clock = performance.now();
   requestAnimationFrame(loop);
 }
 

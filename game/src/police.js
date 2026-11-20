@@ -1,451 +1,347 @@
 // SOLARA — police.js
-// Wanted system: 5 stars, cruisers + officers chase, helicopter at 3 stars,
-// EVADING meter fills while unseen — 100% drops a star.
+// Wanted system: cruisers + officers chase on the ground, and at 3+ stars a
+// detailed white helicopter joins with a searchlight. The beam is computed
+// from the lamp's LIVE world position every frame — apex at the spotlight
+// under the heli nose, bright pool at the exact ground hit point.
 
 import * as THREE from 'three';
-import { S, clamp } from './config.js';
-import { makeCar } from './vehicles.js';
-import { addShootTarget, removeShootTarget } from './player.js';
-import { resolveCollisions, colliders } from './world.js';
-import { sfxSirenBlip } from './audio.js';
+import { S } from './config.js';
 
+export const cruisers = [];
+export const officers = [];
+
+let heli = null;
+let heliLamp = null;
+let heliBeam = null;
+let heliPool = null;
+let heliRotor = null;
 let sceneRef = null;
-export const cruisers = [];  // {group, wheels, heading, speed, x, z}
-export const officers = [];  // {group, target, hp, x, z, heading, shootCd}
-let heli = null;             // {group, rotor, light}
-let roadblock = null;        // {meshes, colliders, cruisers} — 3+ stars only
 let flashT = 0;
 
-function buildOfficer() {
+function buildCruiserMesh() {
   const g = new THREE.Group();
-  const navy = new THREE.MeshLambertMaterial({ color: 0x1a2a4a });
-  const skin = new THREE.MeshLambertMaterial({ color: 0xc98e6a });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.32), navy);
-  torso.position.y = 1.15; g.add(torso);
-  const vest = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.4, 0.34), new THREE.MeshLambertMaterial({ color: 0x0e1420 }));
-  vest.position.y = 1.2; g.add(vest);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), skin);
-  head.position.y = 1.68; g.add(head);
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.1, 10), navy);
-  cap.position.y = 1.84; g.add(cap);
-  for (const sx of [-0.15, 0.15]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.7, 0.18), navy);
-    leg.position.set(sx, 0.38, 0); g.add(leg);
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(1.9, 0.6, 4.3),
+    new THREE.MeshLambertMaterial({ color: 0xf2f2f2 })
+  );
+  body.position.y = 0.55;
+  g.add(body);
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(1.7, 0.5, 2.0),
+    new THREE.MeshLambertMaterial({ color: 0x1a2433 })
+  );
+  cabin.position.set(0, 1.05, -0.2);
+  g.add(cabin);
+  // blue stripe along the side
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(1.92, 0.18, 4.32),
+    new THREE.MeshLambertMaterial({ color: 0x1565c0 })
+  );
+  stripe.position.y = 0.62;
+  g.add(stripe);
+  // light bar on the roof: red left, blue right, flashing in policeTick
+  const barL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), new THREE.MeshBasicMaterial({ color: 0xff2222 }));
+  barL.position.set(-0.45, 1.4, -0.2);
+  barL.name = 'barL';
+  g.add(barL);
+  const barR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), new THREE.MeshBasicMaterial({ color: 0x2244ff }));
+  barR.position.set(0.45, 1.4, -0.2);
+  barR.name = 'barR';
+  g.add(barR);
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  for (const [wx, wz] of [[-0.95, 1.4], [0.95, 1.4], [-0.95, -1.4], [0.95, -1.4]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.28, 10), wheelMat);
+    w.rotation.z = Math.PI / 2;
+    w.position.set(wx, 0.36, wz);
+    g.add(w);
   }
-  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.28), new THREE.MeshLambertMaterial({ color: 0x111111 }));
-  gun.position.set(0.3, 1.1, 0.2); g.add(gun);
+  return g;
+}
+
+function buildOfficerMesh() {
+  const g = new THREE.Group();
+  const uni = new THREE.MeshLambertMaterial({ color: 0x1a3a6b });
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.3), uni);
+  torso.position.y = 1.1;
+  g.add(torso);
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 10, 8),
+    new THREE.MeshLambertMaterial({ color: 0xc98e6a })
+  );
+  head.position.y = 1.62;
+  g.add(head);
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.21, 0.21, 0.1, 10),
+    new THREE.MeshLambertMaterial({ color: 0x0d2137 })
+  );
+  cap.position.y = 1.78;
+  g.add(cap);
+  for (const sx of [-0.14, 0.14]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.62, 0.17), new THREE.MeshLambertMaterial({ color: 0x14181f }));
+    leg.position.set(sx, 0.35, 0);
+    g.add(leg);
+  }
+  const blob = new THREE.Mesh(
+    new THREE.CircleGeometry(0.5, 12),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false })
+  );
+  blob.rotation.x = -Math.PI / 2;
+  blob.position.y = 0.02;
+  g.add(blob);
   return g;
 }
 
 function buildHeli() {
   const g = new THREE.Group();
-  // WHITE police helicopter with blue stripe — reads clearly against the
-  // blue sky, not a black blob. Body, tail boom, fin, tail rotor, skids,
-  // glass cockpit, and a spotlight housing under the nose.
-  const white = new THREE.MeshStandardMaterial({ color: 0xf2f5f7, metalness: 0.35, roughness: 0.35 });
-  const blue = new THREE.MeshStandardMaterial({ color: 0x1a5fb4, metalness: 0.4, roughness: 0.4 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x9fd8e8, metalness: 0.8, roughness: 0.15 });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 3.6), white);
+  const white = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 5.2), white);
+  body.position.y = 0;
   g.add(body);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.24, 0.4, 3.62), blue);
-  stripe.position.y = -0.2;
+  // blue stripe along the body
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.24, 0.35, 5.24), new THREE.MeshLambertMaterial({ color: 0x1565c0 }));
+  stripe.position.y = 0.25;
   g.add(stripe);
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(1.0, 10, 8), glass);
-  nose.position.set(0, -0.1, 1.7); nose.scale.set(1, 0.8, 0.7); g.add(nose);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 4.4), white);
-  tail.position.set(0, 0.3, -3.6); g.add(tail);
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.6, 1.0), blue);
-  fin.position.set(0, 0.9, -5.6); g.add(fin);
-  const tailRotor = new THREE.Group();
-  for (let i = 0; i < 2; i++) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.6, 0.12), dark);
-    blade.rotation.z = (i * Math.PI) / 2;
-    tailRotor.add(blade);
+  // glass nose
+  const nose = new THREE.Mesh(
+    new THREE.SphereGeometry(1.0, 10, 8),
+    new THREE.MeshLambertMaterial({ color: 0x1a2a3a })
+  );
+  nose.scale.set(1, 0.75, 1.1);
+  nose.position.set(0, 0.1, 2.4);
+  g.add(nose);
+  // tail boom + tail fin
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.5, 4.2, 8), white);
+  boom.rotation.x = Math.PI / 2;
+  boom.position.set(0, 0.25, -4.4);
+  g.add(boom);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.6, 1.0), white);
+  fin.position.set(0, 1.0, -6.3);
+  g.add(fin);
+  // skids
+  const skidMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+  for (const sx of [-0.9, 0.9]) {
+    const skid = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 4.4, 6), skidMat);
+    skid.rotation.x = Math.PI / 2;
+    skid.position.set(sx, -1.0, 0.2);
+    g.add(skid);
   }
-  tailRotor.position.set(0.35, 0.9, -5.6);
-  g.add(tailRotor);
-  // main rotor: 2 thin blades + a translucent blur disc (reads as spinning)
-  const rotor = new THREE.Group();
-  for (let i = 0; i < 2; i++) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(9, 0.06, 0.35), dark);
-    blade.rotation.y = (i * Math.PI) / 2;
-    rotor.add(blade);
+  // main rotor mast + blades + blur disc
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.8, 6), skidMat);
+  mast.position.y = 1.1;
+  g.add(mast);
+  heliRotor = new THREE.Group();
+  const bladeMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+  for (const a of [0, Math.PI / 2]) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 7.6), bladeMat);
+    blade.rotation.y = a;
+    heliRotor.add(blade);
   }
-  rotor.position.y = 1.1;
-  g.add(rotor);
   const blur = new THREE.Mesh(
-    new THREE.CircleGeometry(4.6, 28),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false })
+    new THREE.CircleGeometry(3.9, 24),
+    new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide })
   );
   blur.rotation.x = -Math.PI / 2;
-  blur.position.y = 1.12;
-  g.add(blur);
-  // skids + struts
-  for (const sx of [-0.9, 0.9]) {
-    const skid = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 3.2), dark);
-    skid.position.set(sx, -1.0, 0); g.add(skid);
-    for (const sz of [-1.1, 1.1]) {
-      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), dark);
-      strut.position.set(sx, -0.75, sz); g.add(strut);
-    }
-  }
-  // spotlight housing under the nose + bright lens facing down
-  const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.5, 10), dark);
-  housing.position.set(0, -1.0, 1.2);
-  g.add(housing);
-  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.28, 12), new THREE.MeshBasicMaterial({ color: 0xfffbe0 }));
-  lens.rotation.x = Math.PI / 2; // face down
-  lens.position.set(0, -1.26, 1.2);
-  g.add(lens);
-  return { group: g, rotor, tailRotor, blur, lampLocal: new THREE.Vector3(0, -1.26, 1.2) };
-}
-
-// Searchlight beam + ground pool. The beam is a cone whose APEX is at the
-// spotlight lamp and whose wide base lands on the ground at the player —
-// built as scene children and re-aimed every frame, so the light visibly
-// comes FROM the helicopter TO the ground. (The old code called
-// cone.lookAt(), which aligns +Z, not the cone's Y axis, so the beam lay
-// sideways and never lined up with the heli.)
-function buildBeam() {
-  const beam = new THREE.Group();
-  const geo = new THREE.ConeGeometry(6, 30, 16, 1, true);
-  geo.translate(0, -15, 0); // apex at origin, base 30 m below
-  const cone = new THREE.Mesh(
-    geo,
-    new THREE.MeshBasicMaterial({ color: 0xfff6c9, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })
+  heliRotor.add(blur);
+  heliRotor.position.y = 1.5;
+  g.add(heliRotor);
+  // SEARCHLIGHT: a real lamp under the nose, with a bright lens. The beam
+  // cone below is positioned from THIS lamp's world position each frame.
+  heliLamp = new THREE.Group();
+  heliLamp.position.set(0, -0.85, 2.0);
+  const lampBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 0.38, 0.35, 10),
+    new THREE.MeshLambertMaterial({ color: 0x444444 })
   );
-  beam.add(cone);
-  const pool = new THREE.Mesh(
-    new THREE.CircleGeometry(6, 24),
-    new THREE.MeshBasicMaterial({ color: 0xfff6c9, transparent: true, opacity: 0.65, depthWrite: false })
+  heliLamp.add(lampBody);
+  const lens = new THREE.Mesh(
+    new THREE.CircleGeometry(0.3, 12),
+    new THREE.MeshBasicMaterial({ color: 0xfffbe0 })
   );
-  pool.rotation.x = -Math.PI / 2;
-  return { beam, pool };
+  lens.rotation.x = Math.PI / 2;
+  lens.position.y = -0.19;
+  heliLamp.add(lens);
+  g.add(heliLamp);
+  g.visible = false;
+  return g;
 }
 
 export function buildPolice(scene) {
   sceneRef = scene;
+  heli = buildHeli();
+  scene.add(heli);
+  // beam cone: apex narrow at the lamp, wide at the ground (opacity 0.3)
+  heliBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.35, 3.0, 1, 16, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff6c9, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide,
+    })
+  );
+  heliBeam.visible = false;
+  scene.add(heliBeam);
+  // bright pool on the ground at the exact hit point (opacity 0.65)
+  heliPool = new THREE.Mesh(
+    new THREE.CircleGeometry(3.0, 20),
+    new THREE.MeshBasicMaterial({ color: 0xfff2a0, transparent: true, opacity: 0.65, depthWrite: false })
+  );
+  heliPool.rotation.x = -Math.PI / 2;
+  heliPool.position.y = 0.06;
+  heliPool.visible = false;
+  scene.add(heliPool);
 }
 
 export function addWanted(n, reason) {
-  const before = S.wanted;
-  S.wanted = clamp(S.wanted + n, 0, 5);
+  S.wanted = Math.min(5, S.wanted + n);
+  S.seen = true;
   S.evading = 0;
-  if (S.wanted > before) sfxSirenBlip();
-  return S.wanted;
 }
 
-let unitSeq = 0;
-const UNIT_NAMES = ['CORAL', 'MARLIN', 'KITE', 'REEF', 'TIDE', 'SURGE'];
-
-function spawnCruiser() {
-  const { group, wheels } = makeCar(0xf5f5f5, { police: true });
+function spawnPos() {
   const a = Math.random() * Math.PI * 2;
-  const x = S.px + Math.cos(a) * 55;
-  const z = S.pz + Math.sin(a) * 55;
-  group.position.set(x, 0, z);
-  sceneRef.add(group);
-  unitSeq++;
-  const c = { group, wheels, heading: Math.atan2(S.px - x, S.pz - z), speed: 0, x, z, name: UNIT_NAMES[unitSeq % UNIT_NAMES.length] + '-' + (unitSeq % 9 + 1), hp: 100 };
-  cruisers.push(c);
-  return c;
-}
-
-function spawnOfficer() {
-  const g = buildOfficer();
-  const a = Math.random() * Math.PI * 2;
-  const x = S.px + Math.cos(a) * 22;
-  const z = S.pz + Math.sin(a) * 22;
-  g.position.set(x, 0, z);
-  sceneRef.add(g);
-  const o = { group: g, x, z, heading: 0, shootCd: 1 + Math.random(), hp: 100 };
-  const t = addShootTarget(g, 'officer', 100, (target) => {
-    if (target.hp <= 0) {
-      const idx = officers.findIndex((oo) => oo.group === g);
-      if (idx >= 0) officers.splice(idx, 1);
-      removeShootTarget(target);
-      addWanted(1, 'officer down');
-    }
-  });
-  o.target = t;
-  officers.push(o);
-  return o;
-}
-
-function spawnHeli() {
-  const h = buildHeli();
-  h.group.position.set(S.px + 20, 42, S.pz - 10);
-  sceneRef.add(h.group);
-  const { beam, pool } = buildBeam();
-  sceneRef.add(beam);
-  sceneRef.add(pool);
-  h.beam = beam; h.pool = pool;
-  h.prevX = h.group.position.x; h.prevZ = h.group.position.z;
-  heli = h;
-}
-
-function removeHeli() {
-  if (!heli) return;
-  sceneRef.remove(heli.group);
-  if (heli.beam) sceneRef.remove(heli.beam);
-  if (heli.pool) sceneRef.remove(heli.pool);
-  heli = null;
-}
-
-// --- police roadblock (3+ stars): 2 cruisers + striped barriers across
-// the road ahead of the player. A real GTA feature — chases feel real.
-let barrierTex = null;
-function makeBarrierTexture() {
-  if (barrierTex) return barrierTex;
-  const c = document.createElement('canvas');
-  c.width = 128; c.height = 32;
-  const g = c.getContext('2d');
-  g.fillStyle = '#f5f5f5'; g.fillRect(0, 0, 128, 32);
-  g.fillStyle = '#d32f2f';
-  for (let x = -32; x < 128; x += 32) {
-    g.beginPath();
-    g.moveTo(x, 32); g.lineTo(x + 16, 0); g.lineTo(x + 32, 0); g.lineTo(x + 16, 32);
-    g.closePath(); g.fill();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  barrierTex = t;
-  return t;
-}
-
-function spawnRoadblock() {
-  if (roadblock) return;
-  // road ahead: snap to the nearest road centre line along the player's heading
-  const fx = Math.sin(S.heading), fz = Math.cos(S.heading);
-  const ahead = 45;
-  const alongX = Math.abs(fx) > Math.abs(fz);
-  const roads = [-256, -192, -128, -64, 0, 64, 128, 192, 256];
-  const nearest = (v) => roads.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
-  const cx = alongX ? S.px + fx * ahead : nearest(S.px);
-  const cz = alongX ? nearest(S.pz) : S.pz + fz * ahead;
-  const meshes = [];
-  const cols = [];
-  const rcs = [];
-  const addCollider = (x, z, hx, hz) => {
-    const c = { x, z, hx, hz };
-    colliders.push(c);
-    cols.push(c);
+  const r = 55 + Math.random() * 30;
+  return {
+    x: Math.max(-300, Math.min(300, S.px + Math.cos(a) * r)),
+    z: Math.max(-300, Math.min(300, S.pz + Math.sin(a) * r)),
   };
-  // two cruisers parked across the road (facing the player), one per side
-  for (const side of [-1, 1]) {
-    const { group } = makeCar(0xf5f5f5, { police: true });
-    const ox = alongX ? 0 : side * 6.5;
-    const oz = alongX ? side * 6.5 : 0;
-    group.position.set(cx + ox, 0, cz + oz);
-    group.rotation.y = alongX ? (side > 0 ? 0 : Math.PI) : (side > 0 ? Math.PI / 2 : -Math.PI / 2);
-    sceneRef.add(group);
-    meshes.push(group);
-    rcs.push(group);
-    addCollider(cx + ox, cz + oz, alongX ? 1.2 : 2.4, alongX ? 2.4 : 1.2);
-  }
-  // striped barriers filling the gaps between / beside the cruisers
-  const tex = makeBarrierTexture();
-  const barMat = new THREE.MeshBasicMaterial({ map: tex });
-  const legMat = new THREE.MeshLambertMaterial({ color: 0x2c2f36 });
-  for (const off of [-9.5, -3.2, 3.2, 9.5]) {
-    const bar = new THREE.Group();
-    const board = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.5, 0.12), barMat);
-    board.position.y = 0.85; bar.add(board);
-    for (const lx of [-1.4, 1.4]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.85, 0.5), legMat);
-      leg.position.set(lx, 0.42, 0); bar.add(leg);
-    }
-    const bx = alongX ? cx : cx + off;
-    const bz = alongX ? cz + off : cz;
-    bar.position.set(bx, 0, bz);
-    bar.rotation.y = alongX ? 0 : Math.PI / 2;
-    sceneRef.add(bar);
-    meshes.push(bar);
-    addCollider(bx, bz, alongX ? 1.8 : 0.4, alongX ? 0.4 : 1.8);
-  }
-  roadblock = { meshes, cols, cruisers: rcs };
 }
 
-function removeRoadblock() {
-  if (!roadblock) return;
-  for (const m of roadblock.meshes) sceneRef.remove(m);
-  for (const c of roadblock.cols) {
-    const i = colliders.indexOf(c);
-    if (i >= 0) colliders.splice(i, 1);
+function wantCounts() {
+  switch (S.wanted) {
+    case 1: return { cruisers: 1, officers: 1 };
+    case 2: return { cruisers: 2, officers: 2 };
+    case 3: return { cruisers: 3, officers: 4 };
+    case 4: return { cruisers: 4, officers: 5 };
+    case 5: return { cruisers: 5, officers: 6 };
+    default: return { cruisers: 0, officers: 0 };
   }
-  roadblock = null;
 }
 
 export function policeTick(dt) {
+  if (!sceneRef) return;
   flashT += dt;
-  // --- maintain force levels from wanted stars ---
-  const wantCruisers = S.wanted >= 1 ? Math.min(S.wanted, 4) : 0;
-  while (cruisers.length < wantCruisers) spawnCruiser();
-  while (cruisers.length > wantCruisers) {
+  const want = wantCounts();
+
+  // spawn up to the wanted level's counts
+  while (cruisers.length < want.cruisers) {
+    const p = spawnPos();
+    const g = buildCruiserMesh();
+    g.position.set(p.x, 0, p.z);
+    sceneRef.add(g);
+    cruisers.push({ group: g, x: p.x, z: p.z, heading: 0, name: 'MARLIN-' + (cruisers.length + 1) });
+  }
+  while (officers.length < want.officers) {
+    const p = spawnPos();
+    const g = buildOfficerMesh();
+    g.position.set(p.x, 0, p.z);
+    sceneRef.add(g);
+    officers.push({ group: g, x: p.x, z: p.z, heading: 0, name: 'FOOT-' + (officers.length + 1) });
+  }
+  // remove extras when the heat drops
+  while (cruisers.length > want.cruisers) {
     const c = cruisers.pop();
     sceneRef.remove(c.group);
   }
-  const wantOfficers = S.wanted >= 2 ? Math.min((S.wanted - 1) * 2, 6) : 0;
-  while (officers.length < wantOfficers) spawnOfficer();
-  while (officers.length > wantOfficers) {
+  while (officers.length > want.officers) {
     const o = officers.pop();
-    removeShootTarget(o.target);
+    sceneRef.remove(o.group);
   }
-  if (S.wanted >= 3 && !heli) spawnHeli();
-  if (S.wanted < 3 && heli) removeHeli();
-  // roadblock at 3+ stars, gone when the heat drops
-  if (S.wanted >= 3) spawnRoadblock();
-  else removeRoadblock();
 
-  // --- cruisers chase: steer toward the player, ram speed just under a good car ---
+  // cruisers chase: steer toward the player at speed 32, flash the light bar
+  const flash = Math.sin(flashT * 14) > 0;
   for (const c of cruisers) {
-    const dx = S.px - c.x, dz = S.pz - c.z;
+    const dx = S.px - c.x;
+    const dz = S.pz - c.z;
     const dist = Math.hypot(dx, dz) || 1;
     const wantHeading = Math.atan2(dx, dz);
     let dh = wantHeading - c.heading;
     while (dh > Math.PI) dh -= Math.PI * 2;
     while (dh < -Math.PI) dh += Math.PI * 2;
-    c.heading += clamp(dh, -1.6 * dt, 1.6 * dt);
-    const targetSpeed = dist > 8 ? 32 : 12;
-    c.speed += (targetSpeed - c.speed) * Math.min(1, dt * 0.9);
-    c.x += Math.sin(c.heading) * c.speed * dt;
-    c.z += Math.cos(c.heading) * c.speed * dt;
-    // slide around buildings instead of stalling against a wall
-    const cp = resolveCollisions(c.x, c.z, 2.2);
-    if (cp.x !== c.x || cp.z !== c.z) c.speed *= 0.55;
-    c.x = cp.x; c.z = cp.z;
+    c.heading += Math.max(-2.4 * dt, Math.min(2.4 * dt, dh));
+    const speed = dist > 6 ? 32 : 12;
+    c.x += Math.sin(c.heading) * speed * dt;
+    c.z += Math.cos(c.heading) * speed * dt;
     c.group.position.set(c.x, 0, c.z);
     c.group.rotation.y = c.heading;
-    for (const w of c.wheels) w.rotation.x += (c.speed * dt) / 0.38;
-    // flash the light bar
-    const on = Math.sin(flashT * 10) > 0;
-    if (c.group.userData.lightRed) c.group.userData.lightRed.material.color.setHex(on ? 0xff2020 : 0x550000);
-    if (c.group.userData.lightBlue) c.group.userData.lightBlue.material.color.setHex(on ? 0x102060 : 0x2040ff);
-    // ramming the player on foot hurts (not during staged shots)
-    if (!S.shotMode && !S.inCar && dist < 2.4) {
-      S.health = Math.max(0, S.health - 26 * dt);
-      S.px += Math.sin(c.heading) * 6 * dt;
-      S.pz += Math.cos(c.heading) * 6 * dt;
-    }
-    // ramming the player's car damages it (not during staged shots)
-    if (!S.shotMode && S.inCar && S.car && dist < 4.2) {
-      S.car.health = Math.max(0, S.car.health - 8 * dt);
-      S.car.speed *= 0.995;
-    }
+    const barL = c.group.getObjectByName('barL');
+    const barR = c.group.getObjectByName('barR');
+    if (barL) barL.material.color.setHex(flash ? 0xff2222 : 0x661111);
+    if (barR) barR.material.color.setHex(flash ? 0x111166 : 0x2244ff);
   }
 
-  // --- officers chase on foot and shoot when close ---
+  // officers run at the player at speed 5.6
   for (const o of officers) {
-    const dx = S.px - o.x, dz = S.pz - o.z;
+    const dx = S.px - o.x;
+    const dz = S.pz - o.z;
     const dist = Math.hypot(dx, dz) || 1;
     o.heading = Math.atan2(dx, dz);
-    if (dist > 6) {
-      o.x += Math.sin(o.heading) * 5.6 * dt;
-      o.z += Math.cos(o.heading) * 5.6 * dt;
-      const op = resolveCollisions(o.x, o.z, 0.6);
-      o.x = op.x; o.z = op.z;
+    if (dist > 1.6) {
+      o.x += (dx / dist) * 5.6 * dt;
+      o.z += (dz / dist) * 5.6 * dt;
     }
-    o.group.position.set(o.x, 0, o.z);
+    o.group.position.set(o.x, Math.abs(Math.sin(S.time * 9 + o.x)) * 0.05, o.z);
     o.group.rotation.y = o.heading;
-    o.group.position.y = Math.abs(Math.sin(S.time * 9 + o.x)) * 0.04;
-    o.shootCd -= dt;
-    if (dist < 45 && o.shootCd <= 0) {
-      o.shootCd = 1.1 + Math.random() * 0.8;
-      if (Math.random() < 0.45) S.health = Math.max(0, S.health - 6);
-    }
   }
 
-  // --- helicopter: hover above, rotor spins, spotlight tracks the player ---
-  if (heli) {
-    const hx = S.px + Math.sin(S.time * 0.35) * 14;
-    const hz = S.pz + Math.cos(S.time * 0.27) * 14;
-    heli.group.position.x += (hx - heli.group.position.x) * Math.min(1, dt * 0.8);
-    heli.group.position.z += (hz - heli.group.position.z) * Math.min(1, dt * 0.8);
-    heli.group.position.y = (S.heliAlt || 42) + Math.sin(S.time * 0.8) * 1.2;
-    heli.group.rotation.y = Math.atan2(S.px - heli.group.position.x, S.pz - heli.group.position.z);
-    heli.rotor.rotation.y += dt * 22;
-    heli.tailRotor.rotation.z += dt * 30;
-    // BANK + TILT: roll into turns, nose dips when moving forward (real aircraft feel)
-    if (dt > 0) {
-      const vx = (heli.group.position.x - heli.prevX) / dt;
-      const vz = (heli.group.position.z - heli.prevZ) / dt;
-      const h = heli.group.rotation.y;
-      const fwd = vx * Math.sin(h) + vz * Math.cos(h);
-      const lat = vx * Math.cos(h) - vz * Math.sin(h);
-      heli.group.rotation.x = clamp(fwd * 0.012, -0.18, 0.18);
-      heli.group.rotation.z = clamp(-lat * 0.012, -0.3, 0.3);
-    }
-    heli.prevX = heli.group.position.x; heli.prevZ = heli.group.position.z;
-    // SEARCHLIGHT: beam apex AT the lamp, aimed at the player, ground pool
-    // where it lands. Re-aimed every frame so it tracks the helicopter.
-    const lampWorld = heli.group.localToWorld(heli.lampLocal.clone());
-    const target = new THREE.Vector3(S.px, 0, S.pz);
-    const toTarget = target.clone().sub(lampWorld);
-    const dist = Math.max(1, toTarget.length());
-    const dir = toTarget.normalize();
-    heli.beam.position.copy(lampWorld);
-    heli.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
-    const s = dist / 30;
-    heli.beam.scale.set(s, s, s);
-    heli.pool.position.set(S.px, 0.09, S.pz);
-    heli.pool.scale.setScalar(s);
-  }
-
-  // --- seen? any police close, or the helicopter is up ---
-  let seen = false;
-  for (const c of cruisers) if (Math.hypot(c.x - S.px, c.z - S.pz) < 70) seen = true;
-  for (const o of officers) if (Math.hypot(o.x - S.px, o.z - S.pz) < 55) seen = true;
-  if (heli) seen = true;
-  S.seen = seen;
-
-  // --- EVADING: fills while unseen, 100% drops a star ---
+  // seen / evading: a unit within 28 m means the cops have eyes on Kai
+  let anyNear = false;
+  for (const c of cruisers) if (Math.hypot(c.x - S.px, c.z - S.pz) < 28) anyNear = true;
+  for (const o of officers) if (Math.hypot(o.x - S.px, o.z - S.pz) < 28) anyNear = true;
   if (S.wanted > 0) {
-    if (!seen) {
-      S.evading = clamp(S.evading + dt * 14, 0, 100);
+    if (anyNear) { S.seen = true; S.evading = 0; }
+    else {
+      S.seen = false;
+      S.evading = Math.min(100, S.evading + dt * 14);
       if (S.evading >= 100) {
         S.wanted = Math.max(0, S.wanted - 1);
         S.evading = 0;
       }
-    } else {
-      S.evading = Math.max(0, S.evading - dt * 30);
     }
-  } else {
-    S.evading = 0;
   }
 
-  // --- busted: health hits zero ---
-  if (S.health <= 0 && !S.over) {
-    S.over = true;
-    S.wanted = 0;
+  // helicopter at 3+ stars: hover above the player, bob, bank, beam on Kai
+  const heliOn = S.wanted >= 3;
+  heli.visible = heliOn;
+  heliBeam.visible = heliOn;
+  heliPool.visible = heliOn;
+  if (heliOn) {
+    const bob = Math.sin(S.time * 1.4) * 1.2;
+    const hx = S.px + Math.sin(S.time * 0.5) * 6;
+    const hz = S.pz + Math.cos(S.time * 0.4) * 6;
+    const hy = 24 + bob;
+    heli.position.set(hx, hy, hz);
+    // bank into the turn: tilt with the sideways drift
+    heli.rotation.z = Math.cos(S.time * 0.5) * 0.12;
+    heli.rotation.x = Math.sin(S.time * 0.4) * 0.08;
+    heli.rotation.y = Math.atan2(S.px - hx, S.pz - hz);
+    if (heliRotor) heliRotor.rotation.y += dt * 28;
+
+    // BEAM: apex = the lamp's live world position (under the nose),
+    // direction straight to the player on the ground, pool at the hit point.
+    const lampPos = new THREE.Vector3();
+    heliLamp.getWorldPosition(lampPos);
+    const hit = new THREE.Vector3(S.px, 0.06, S.pz);
+    const dir = hit.clone().sub(lampPos);
+    const len = dir.length();
+    dir.normalize();
+    heliBeam.scale.set(1, len, 1);
+    heliBeam.position.copy(lampPos).addScaledVector(dir, len / 2);
+    heliBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().negate());
+    heliPool.position.set(hit.x, 0.06, hit.z);
   }
 }
 
-export function nearestPoliceDist() {
-  let d = Infinity;
-  for (const c of cruisers) d = Math.min(d, Math.hypot(c.x - S.px, c.z - S.pz));
-  for (const o of officers) d = Math.min(d, Math.hypot(o.x - S.px, o.z - S.pz));
-  return d;
-}
-
-// Police RESPONSE panel data: unit name + distance + status, for the HUD.
-// Status: SEARCHING (unseen), PURSUIT (seen, closing), FIRING (officer shooting).
 export function policeUnits() {
-  const units = [];
+  const list = [];
   for (const c of cruisers) {
-    const d = Math.hypot(c.x - S.px, c.z - S.pz);
-    const status = d < 10 ? 'PURSUIT' : S.seen ? 'PURSUIT' : 'SEARCHING';
-    units.push({ name: c.name || 'UNIT', dist: Math.round(d), status });
+    const d = Math.round(Math.hypot(c.x - S.px, c.z - S.pz));
+    list.push({ name: c.name, dist: d, status: d < 12 ? 'FIRING' : 'PURSUIT' });
   }
-  for (let i = 0; i < officers.length; i++) {
-    const o = officers[i];
-    const d = Math.hypot(o.x - S.px, o.z - S.pz);
-    const status = d < 45 ? 'FIRING' : S.seen ? 'PURSUIT' : 'SEARCHING';
-    units.push({ name: 'FOOT-' + (i + 1), dist: Math.round(d), status });
+  for (const o of officers) {
+    const d = Math.round(Math.hypot(o.x - S.px, o.z - S.pz));
+    list.push({ name: o.name, dist: d, status: d < 4 ? 'FIRING' : 'PURSUIT' });
   }
-  if (S.wanted >= 3) {
-    const hd = heli ? Math.round(Math.hypot(heli.group.position.x - S.px, heli.group.position.z - S.pz)) : 0;
-    units.push({ name: 'HELI-1', dist: hd, status: 'PURSUIT' });
+  if (S.wanted >= 3 && heli) {
+    const d = Math.round(Math.hypot(heli.position.x - S.px, heli.position.z - S.pz));
+    list.push({ name: 'HELI-1', dist: d, status: 'PURSUIT' });
   }
-  return units;
+  return list;
 }

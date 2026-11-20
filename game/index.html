@@ -2,151 +2,103 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/png" href="favicon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>SOLARA — an open-world crime game</title>
+<link rel="icon" href="./favicon.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1a2a;
-    font-family: Arial, Helvetica, sans-serif; color: #fff;
-    user-select: none; overscroll-behavior: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1a2a; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #fff; user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
   #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
-  #hud button { pointer-events: auto; }
+  #hud button { pointer-events: auto; cursor: pointer; }
 
-  #top-left { position: absolute; top: 14px; left: 16px; }
-  #cash { font-size: 34px; font-weight: bold; color: #69f0ae; text-shadow: 0 2px 6px rgba(0,0,0,.7); }
-  #rank { font-size: 15px; letter-spacing: 2px; color: #ffd23a; text-shadow: 0 1px 4px rgba(0,0,0,.8); margin-top: 2px; }
-  #district { font-size: 13px; letter-spacing: 3px; opacity: .85; margin-top: 2px; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
-  #geckos { font-size: 14px; font-weight: bold; letter-spacing: 1px; color: #ffd23a; margin-top: 4px; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
-  #mission-panel { margin-top: 12px; width: 340px; background: rgba(10,10,18,.62);
-    border: 1px solid rgba(255,210,58,.5); border-left: 5px solid #ffd23a;
-    border-radius: 8px; padding: 10px 12px; }
-  #mission-title { font-size: 16px; font-weight: bold; color: #ffd23a; }
-  #mission-brief { font-size: 13px; line-height: 1.45; margin-top: 4px; color: #f0f0f0; }
-  #mission-meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 15px; }
-  #mission-clock { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; }
-  #mission-dist { font-size: 15px; color: #9fd8e8; align-self: flex-end; }
-  #mission-bar { height: 6px; background: rgba(255,255,255,.18); border-radius: 3px; margin-top: 6px; overflow: hidden; }
-  #mission-fill { height: 100%; width: 0%; background: #ffd23a; }
+  /* start screen */
+  #start-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: linear-gradient(180deg, rgba(10,20,40,.55), rgba(10,20,40,.25) 45%, rgba(10,20,40,.6)); pointer-events: auto; text-align: center; padding: 20px; }
+  #start-screen .title { font-size: 84px; font-weight: 900; letter-spacing: 10px; color: #ffd23a; text-shadow: 0 0 24px rgba(255,210,58,.65), 0 4px 0 #7a5b00; }
+  #start-screen .subtitle { font-size: 18px; letter-spacing: 3px; color: #9fd8ff; }
+  #start-screen .start-body { font-size: 16px; line-height: 1.6; color: #eaf2ff; max-width: 560px; }
+  #start-screen .start-btns { display: flex; gap: 12px; margin-top: 6px; }
+  #start-screen button { font-size: 18px; font-weight: 700; padding: 12px 26px; border: none; border-radius: 6px; background: #ffd23a; color: #1a1210; }
+  #start-screen button.menu-btn { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.4); }
+  #settings-panel { font-size: 15px; display: flex; gap: 18px; }
+  #settings-panel label { display: flex; gap: 6px; align-items: center; }
+  .controls-grid { display: grid; grid-template-columns: auto auto; gap: 4px 16px; font-size: 13px; color: #cfe3ff; text-align: left; background: rgba(0,0,0,.35); padding: 12px 18px; border-radius: 8px; }
+  .controls-grid span:nth-child(odd) { font-weight: 700; color: #ffd23a; }
+  .start-foot { font-size: 13px; color: #9fb4d8; }
+
+  /* top left */
+  #top-left { position: absolute; top: 14px; left: 14px; display: flex; flex-direction: column; gap: 6px; width: 300px; }
+  #cash { font-size: 30px; font-weight: 900; color: #69f0ae; text-shadow: 0 2px 4px rgba(0,0,0,.7); }
+  #rank { font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+  #rp-bar { height: 6px; background: rgba(255,255,255,.2); border-radius: 3px; overflow: hidden; }
+  #rp-fill { height: 100%; width: 0%; background: #ffd23a; }
+  #district { font-size: 13px; color: #cfe3ff; }
+  #geckos { font-size: 14px; font-weight: 700; color: #ffd23a; }
+  #mission-panel { background: rgba(8,14,28,.72); border: 1px solid rgba(255,210,58,.5); border-radius: 8px; padding: 10px 12px; }
+  #mission-title { font-size: 14px; font-weight: 800; color: #ffd23a; }
+  #mission-brief { font-size: 13px; line-height: 1.45; color: #eaf2ff; margin-top: 4px; }
+  #mission-meta { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-top: 6px; }
   #mission-segs { display: flex; gap: 4px; margin-top: 6px; }
-  #mission-segs span { flex: 1; height: 7px; background: rgba(255,255,255,.18); border-radius: 3px; }
-  #rp-bar { height: 5px; background: rgba(255,255,255,.18); border-radius: 3px; margin-top: 4px; width: 200px; overflow: hidden; }
-  #rp-fill { height: 100%; width: 0%; background: #69f0ae; }
-  #response-panel { margin-top: 10px; width: 340px; background: rgba(10,10,18,.62);
-    border: 1px solid rgba(255,64,64,.55); border-left: 5px solid #ff4040;
-    border-radius: 8px; padding: 8px 12px; }
-  #response-title { font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #ff8080; }
-  .resp-row { display: flex; justify-content: space-between; font-size: 13px; margin-top: 3px; }
-  .resp-name { color: #fff; font-weight: bold; }
-  .resp-dist { color: #9fd8e8; }
-  .resp-status { letter-spacing: 1px; font-weight: bold; }
-  .resp-status.searching { color: #ffd23a; }
-  .resp-status.pursuit { color: #ff8080; }
-  .resp-status.firing { color: #ff4040; }
-  .resp-status.wrecked { color: #888; }
-  #seen-badge { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: bold;
-    letter-spacing: 2px; padding: 3px 10px; border-radius: 5px; color: #fff; }
-  #armour-wrap { margin-top: 8px; }
-  #armour-label { font-size: 11px; letter-spacing: 2px; opacity: .9; }
-  #armour-bar { width: 190px; height: 9px; background: rgba(0,0,0,.55);
-    border: 1px solid rgba(255,255,255,.35); border-radius: 5px; margin-left: auto; overflow: hidden; }
-  #armour-fill { height: 100%; width: 40%; background: #4fc3f7; }
-  #vehicle-hud { margin-top: 8px; background: rgba(10,10,18,.6); border: 1px solid rgba(255,255,255,.35);
-    border-radius: 8px; padding: 8px 10px; width: 260px; }
-  #car-name { font-size: 18px; font-weight: bold; color: #ffd23a; letter-spacing: 1px; }
-  #car-cond { height: 7px; background: rgba(255,255,255,.18); border-radius: 3px; margin-top: 5px; overflow: hidden; }
-  #car-cond-fill { height: 100%; width: 100%; background: #69f0ae; }
-  #car-line { font-size: 14px; margin-top: 5px; }
-  #car-song { font-size: 12px; color: #9fd8e8; margin-top: 2px; }
-  #dialogue { position: absolute; left: 50%; bottom: 180px; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 12px; background: rgba(10,10,18,.85);
-    border: 1px solid rgba(255,210,58,.6); border-radius: 10px; padding: 10px 16px;
-    max-width: 640px; }
-  #portrait { border-radius: 50%; border: 2px solid #ffd23a; flex-shrink: 0; }
-  #dialogue-name { color: #ffd23a; font-size: 14px; letter-spacing: 2px; display: block; }
-  #dialogue-line { font-size: 15px; line-height: 1.4; }
-  #jack-prompt { position: absolute; left: 50%; bottom: 240px; transform: translateX(-50%);
-    background: rgba(10,10,18,.8); border: 1px solid #ffd23a; border-radius: 8px;
-    padding: 8px 16px; font-size: 16px; }
-  #jack-prompt b { color: #ffd23a; }
+  #mission-segs span { flex: 1; height: 5px; background: rgba(255,255,255,.18); border-radius: 2px; }
+  #response-panel { background: rgba(40,8,12,.78); border: 1px solid rgba(255,64,64,.6); border-radius: 8px; padding: 8px 12px; }
+  #response-title { font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #ff8a80; }
+  .resp-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+  .resp-name { font-weight: 700; }
+  .resp-status.pursuit { color: #ffb74d; }
+  .resp-status.firing { color: #ff5252; font-weight: 800; }
 
-  #top-right { position: absolute; top: 14px; right: 16px; text-align: right; }
-  #stars { font-size: 44px; letter-spacing: 4px; color: #ffd23a;
-    text-shadow: 0 0 12px rgba(255,210,58,.55), 0 2px 6px rgba(0,0,0,.8); line-height: 1; }
-  #evade-wrap, #health-wrap { margin-top: 8px; }
-  #evade-label, #health-label { font-size: 11px; letter-spacing: 2px; opacity: .9; }
-  #evade-bar, #health-bar { width: 190px; height: 9px; background: rgba(0,0,0,.55);
-    border: 1px solid rgba(255,255,255,.35); border-radius: 5px; margin-left: auto; overflow: hidden; }
-  #evade-fill { height: 100%; width: 0%; background: #4fc3f7; }
+  /* top right */
+  #top-right { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  #stars { font-size: 30px; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+  #seen-badge { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 4px; }
+  #evade-wrap, #health-wrap, #armour-wrap { width: 170px; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+  #evade-bar, #health-bar, #armour-bar { height: 8px; background: rgba(255,255,255,.2); border-radius: 4px; overflow: hidden; margin-top: 2px; }
+  #evade-fill { height: 100%; width: 0%; background: #ffd23a; }
   #health-fill { height: 100%; width: 100%; background: #69f0ae; }
+  #armour-fill { height: 100%; width: 0%; background: #4fc3f7; }
 
-  #bottom-left { position: absolute; left: 16px; bottom: 16px; }
-  #weapon { font-size: 22px; font-weight: bold; letter-spacing: 1px; text-shadow: 0 2px 5px rgba(0,0,0,.8); }
-  #ammo { font-size: 30px; font-weight: bold; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,.8); }
-  #crew { margin-top: 6px; font-size: 13px; letter-spacing: 1px; }
-  #crew span { background: rgba(10,10,18,.6); border: 1px solid rgba(255,255,255,.35);
-    border-radius: 5px; padding: 3px 7px; margin-right: 6px; }
+  /* bottom left */
+  #bottom-left { position: absolute; left: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 4px; }
+  #weapon { font-size: 22px; font-weight: 900; letter-spacing: 2px; }
+  #ammo { font-size: 18px; font-weight: 700; }
+  #vehicle-hud { background: rgba(8,14,28,.72); border-radius: 8px; padding: 8px 12px; margin-top: 4px; min-width: 250px; }
+  #car-name { font-size: 16px; font-weight: 900; letter-spacing: 1px; }
+  #car-cond { height: 5px; background: rgba(255,255,255,.2); border-radius: 3px; margin: 4px 0; overflow: hidden; }
+  #car-cond-fill { height: 100%; background: #69f0ae; }
+  #car-line { font-size: 13px; color: #cfe3ff; }
+  #car-song { font-size: 12px; color: #ffd23a; font-style: italic; }
+  #crew { display: flex; gap: 10px; font-size: 12px; font-weight: 700; margin-top: 4px; }
+  #crew span { background: rgba(8,14,28,.6); padding: 3px 8px; border-radius: 4px; }
 
-  #bottom-right { position: absolute; right: 16px; bottom: 16px; text-align: right; }
-  #minimap { border: 2px solid rgba(255,255,255,.5); border-radius: 50%;
-    background: #141a24; box-shadow: 0 4px 18px rgba(0,0,0,.6); }
-  #speed { font-size: 24px; font-weight: bold; margin-top: 4px; text-shadow: 0 2px 5px rgba(0,0,0,.8); }
+  /* dialogue */
+  #dialogue { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; background: rgba(8,14,28,.85); border: 1px solid rgba(255,255,255,.25); border-radius: 10px; padding: 10px 16px; max-width: 640px; }
+  #dialogue-text { font-size: 15px; line-height: 1.45; }
+  #dialogue-name { color: #ffd23a; margin-right: 8px; }
+  #portrait { border-radius: 6px; flex-shrink: 0; }
 
-  #crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
-    font-size: 26px; color: rgba(255,255,255,.9); text-shadow: 0 0 6px #000; display: none; }
-  #toast { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%);
-    background: rgba(10,10,18,.78); border: 1px solid rgba(255,210,58,.6); color: #ffe9a8;
-    font-size: 16px; padding: 9px 18px; border-radius: 8px; opacity: 0;
-    transition: opacity .3s; max-width: 80%; text-align: center; }
-  #hint { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
-    font-size: 13px; letter-spacing: 1px; color: rgba(255,255,255,.85);
-    text-shadow: 0 1px 4px #000; }
-
-  #start-screen { position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; text-align: center;
-    background: linear-gradient(180deg, rgba(8,20,40,.5), rgba(8,20,40,.22) 55%, rgba(8,20,40,.58));
-    pointer-events: auto; }
-  #start-screen .title { font-size: 96px; font-weight: bold; letter-spacing: 14px;
-    color: #ffd23a; text-shadow: 0 0 34px rgba(255,150,40,.8), 0 4px 0 #b25e09; }
-  #start-screen .subtitle { font-size: 19px; letter-spacing: 3px; color: #ffb36b; margin-top: 4px; }
-  #start-screen .start-body { font-size: 17px; line-height: 1.6; margin-top: 22px; max-width: 620px; }
-  .start-btns { display: flex; gap: 14px; margin-top: 28px; }
-  .menu-btn { font-size: 20px; font-weight: bold; letter-spacing: 3px;
-    background: rgba(10,10,18,.75); color: #ffd23a; border: 2px solid #ffd23a; border-radius: 10px;
-    padding: 14px 30px; cursor: pointer; }
-  .menu-btn:hover { background: rgba(255,210,58,.25); }
-  #settings-panel { margin-top: 16px; font-size: 15px; background: rgba(10,10,18,.75);
-    border: 1px solid rgba(255,210,58,.5); border-radius: 8px; padding: 10px 18px; }
-  #settings-panel label { margin-right: 18px; }
-  .controls-grid { display: grid; grid-template-columns: auto auto; gap: 5px 18px;
-    margin-top: 22px; font-size: 14px; text-align: left; }
-  .controls-grid span:nth-child(odd) { font-weight: bold; color: #ffd23a; }
-  #start-btn { margin-top: 28px; font-size: 22px; font-weight: bold; letter-spacing: 3px;
-    background: #ffd23a; color: #201400; border: none; border-radius: 10px;
-    padding: 14px 42px; cursor: pointer; box-shadow: 0 6px 24px rgba(255,180,40,.5); }
-  #start-btn:hover { background: #ffe066; }
-  .start-foot { margin-top: 18px; font-size: 13px; opacity: .8; }
-
-  #pause-screen, #busted-screen { position: absolute; inset: 0; display: none;
-    flex-direction: column; align-items: center; justify-content: center;
-    background: rgba(8,8,14,.72); }
-  .pause-title, .busted-title { font-size: 64px; font-weight: bold; letter-spacing: 10px; }
+  #jack-prompt { position: absolute; left: 50%; bottom: 170px; transform: translateX(-50%); background: rgba(8,14,28,.85); padding: 8px 16px; border-radius: 6px; font-size: 15px; border: 1px solid #ffd23a; }
+  #bottom-right { position: absolute; right: 14px; bottom: 14px; text-align: right; }
+  #minimap { border: 2px solid rgba(255,255,255,.35); border-radius: 8px; background: #141a24; }
+  #speed { font-size: 20px; font-weight: 900; margin-top: 4px; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+  #crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 26px; font-weight: 700; color: rgba(255,255,255,.85); text-shadow: 0 0 4px #000; }
+  #toast { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); background: rgba(8,14,28,.85); padding: 8px 18px; border-radius: 6px; font-size: 15px; font-weight: 700; opacity: 0; transition: opacity .3s; white-space: nowrap; }
+  #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 13px; color: rgba(255,255,255,.75); text-shadow: 0 1px 3px #000; }
+  #pause-screen, #map-screen, #busted-screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(5,8,16,.72); pointer-events: auto; }
+  .pause-title, .busted-title { font-size: 56px; font-weight: 900; letter-spacing: 8px; }
   .busted-title { color: #ff5252; }
-  #map-screen { position: absolute; inset: 0; display: none; flex-direction: column;
-    align-items: center; justify-content: center; background: rgba(8,10,18,.88); pointer-events: auto; }
-  .map-title { font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #ffd23a; margin-bottom: 10px; }
-  #map-canvas { border: 2px solid rgba(255,210,58,.6); border-radius: 10px; max-width: 92vw; max-height: 78vh; }
-  .map-foot { margin-top: 10px; font-size: 14px; opacity: .85; }
-  #debug { position: absolute; left: 4px; bottom: 2px; font-size: 9px; color: rgba(255,255,255,.35); }
+  .map-title { font-size: 26px; font-weight: 900; letter-spacing: 3px; }
+  #map-canvas { border: 2px solid rgba(255,255,255,.35); border-radius: 8px; max-width: 92vw; max-height: 72vh; }
+  .map-foot { font-size: 13px; color: #cfe3ff; }
+  #debug { position: absolute; left: 4px; bottom: 2px; font-size: 10px; color: rgba(255,255,255,.35); white-space: pre; }
 </style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
 <div id="hud"></div>
-<script type="importmap">
-{ "imports": { "three": "./vendor/three/three.module.min.js" } }
-</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
