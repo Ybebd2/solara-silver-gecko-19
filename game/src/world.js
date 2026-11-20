@@ -294,7 +294,7 @@ export function buildWorld(scene) {
 
   const ocean = new THREE.Mesh(
     new THREE.PlaneGeometry(320, WORLD.size * 1.8),
-    new THREE.MeshLambertMaterial({ color: 0x00a8d8 })
+    new THREE.MeshLambertMaterial({ color: 0x00b4e0 })
   );
   ocean.rotation.x = -Math.PI / 2;
   ocean.position.set(WORLD.oceanX - 130, 0.0, 0);
@@ -321,8 +321,8 @@ export function buildWorld(scene) {
   const umbMat = new THREE.MeshLambertMaterial({ color: 0x2e86c1 });
   const umbMat2 = new THREE.MeshLambertMaterial({ color: 0xe74c3c });
   const chairMat = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
-  for (let i = 0; i < 12; i++) {
-    const z = -260 + i * 46 + (srand() - 0.5) * 12;
+  for (let i = 0; i < 14; i++) {
+    const z = -260 + i * 40 + (srand() - 0.5) * 12;
     const x = WORLD.beachX - 6 - srand() * 22;
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.6, 6), new THREE.MeshLambertMaterial({ color: 0x8a6b4a }));
     pole.position.set(x, 1.3, z);
@@ -618,7 +618,7 @@ export function buildWorld(scene) {
 
   // soft white daytime clouds — flattened ellipsoid puffs drifting high up
   const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.88, fog: false });
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 16; i++) {
     const cg = new THREE.Group();
     const puffs = 3 + Math.floor(srand() * 3);
     for (let j = 0; j < puffs; j++) {

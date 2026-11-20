@@ -42,10 +42,10 @@ function putInNearestCar() {
 function packTraffic(cx, cz, roadZ) {
   let placed = 0;
   for (const c of traffic) {
-    if (placed >= 8) break;
+    if (placed >= 10) break;
     const lane = placed % 2 === 0 ? 2.5 : 7.5;
     const side = placed % 4 < 2 ? 1 : -1;
-    const along = cx + 18 + placed * 6; // bumper-to-bumper: 6 m spacing, cars ~4.5 m long
+    const along = cx + 18 + placed * 5.5; // bumper-to-bumper: 5.5 m spacing, cars ~4.5 m long
     c.group.position.set(along, 0, roadZ + side * lane);
     c.group.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
     c.horizontal = true;
@@ -108,7 +108,7 @@ export function applyShot(n) {
     S.px = -8; S.pz = -186; S.heading = Math.PI;
     S.missionIdx = 5;
     startMission();
-    S.heliAlt = 26; // bring the helicopter down into the frame for this shot
+    S.heliAlt = 24; // bring the helicopter down into the frame for this shot
     addWanted(3, 'shot');
     return { camPos: [36, 10, -220], camLook: [-12, 10, -176] };
   }

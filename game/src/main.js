@@ -72,7 +72,7 @@ function buildPedestrians() {
     const x = horizontal ? along : road + side;
     const z = horizontal ? road + side : along;
     g.position.set(x, 0, z);
-    g.scale.setScalar(1.45); // BIG enough to read as people from the screenshot camera
+    g.scale.setScalar(1.5); // BIG enough to read as people from the screenshot camera
     scene.add(g);
     pedestrians.push({
       group: g, x, z,
@@ -233,8 +233,8 @@ function cameraTick(dt) {
   if (!S.started) {
     menuT += dt;
     const a = menuT * 0.05;
-    const cx = Math.sin(a) * 120;
-    const cz = Math.cos(a) * 120;
+    const cx = Math.sin(a) * 130;
+    const cz = Math.cos(a) * 130;
     camera.position.lerp(new THREE.Vector3(cx, 42, cz), Math.min(1, dt * 1.2));
     camera.lookAt(-80, 18, -40);
     return;
@@ -250,7 +250,7 @@ function cameraTick(dt) {
   camYaw += dy * Math.min(1, dt * 4);
 
   const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
-  const dist = S.inCar ? 11 : 8.5;
+  const dist = S.inCar ? 11.5 : 9.5;
   const height = S.inCar ? 4.2 : 3.4;
   const px = S.px + fx * dist;
   const pz = S.pz + fz * dist;

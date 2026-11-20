@@ -77,7 +77,7 @@ export function buildPlayer(scene) {
     new THREE.SphereGeometry(0.12, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0 })
   );
-  muzzle.position.set(0.58, 0.95, 0.66);
+  muzzle.position.set(0.58, 0.95, 0.72);
   kai.add(muzzle);
 
   kai.position.set(S.px, 0, S.pz);
@@ -106,7 +106,7 @@ export function playerTick(dt, camera) {
   const turn = (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0) - (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0);
   S.heading += turn * 2.4 * dt;
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
-  const speed = sprint ? 9.5 : 6.0;
+  const speed = sprint ? 10 : 6.4;
   let move = 0;
   if (keys['KeyW'] || keys['ArrowUp']) move += 1;
   if (keys['KeyS'] || keys['ArrowDown']) move -= 0.55;

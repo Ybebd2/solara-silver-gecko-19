@@ -307,7 +307,7 @@ export function policeTick(dt) {
     while (dh > Math.PI) dh -= Math.PI * 2;
     while (dh < -Math.PI) dh += Math.PI * 2;
     c.heading += clamp(dh, -1.6 * dt, 1.6 * dt);
-    const targetSpeed = dist > 8 ? 30 : 12;
+    const targetSpeed = dist > 8 ? 32 : 12;
     c.speed += (targetSpeed - c.speed) * Math.min(1, dt * 0.9);
     c.x += Math.sin(c.heading) * c.speed * dt;
     c.z += Math.cos(c.heading) * c.speed * dt;
@@ -341,8 +341,8 @@ export function policeTick(dt) {
     const dist = Math.hypot(dx, dz) || 1;
     o.heading = Math.atan2(dx, dz);
     if (dist > 6) {
-      o.x += Math.sin(o.heading) * 5.2 * dt;
-      o.z += Math.cos(o.heading) * 5.2 * dt;
+      o.x += Math.sin(o.heading) * 5.6 * dt;
+      o.z += Math.cos(o.heading) * 5.6 * dt;
       const op = resolveCollisions(o.x, o.z, 0.6);
       o.x = op.x; o.z = op.z;
     }
@@ -362,7 +362,7 @@ export function policeTick(dt) {
     const hz = S.pz + Math.cos(S.time * 0.27) * 14;
     heli.group.position.x += (hx - heli.group.position.x) * Math.min(1, dt * 0.8);
     heli.group.position.z += (hz - heli.group.position.z) * Math.min(1, dt * 0.8);
-    heli.group.position.y = (S.heliAlt || 42) + Math.sin(S.time * 0.8) * 1.5;
+    heli.group.position.y = (S.heliAlt || 42) + Math.sin(S.time * 0.8) * 1.2;
     heli.group.rotation.y = Math.atan2(S.px - heli.group.position.x, S.pz - heli.group.position.z);
     heli.rotor.rotation.y += dt * 22;
     heli.tailRotor.rotation.z += dt * 30;

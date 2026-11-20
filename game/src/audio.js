@@ -25,7 +25,7 @@ export function ensureAudio() {
   try {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     const master = ctx.createGain();
-    master.gain.value = 0.5;
+    master.gain.value = 0.45;
     master.connect(ctx.destination);
     ctx._master = master;
     startRadio();
@@ -59,7 +59,7 @@ function startRadio() {
     if (radioStep % 4 === 0) note(root / 2, 0.5, 'sine', 0.07);
     if (radioStep % 8 === 6) note(f * 1.5, 0.3, 'square', 0.025);
     radioStep++;
-  }, 210);
+  }, 200);
 }
 
 function startEngine() {
@@ -67,7 +67,7 @@ function startEngine() {
   engineOsc = ctx.createOscillator();
   engineGain = ctx.createGain();
   engineOsc.type = 'sawtooth';
-  engineOsc.frequency.value = 55;
+  engineOsc.frequency.value = 58;
   engineGain.gain.value = 0.0;
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass'; lp.frequency.value = 320;

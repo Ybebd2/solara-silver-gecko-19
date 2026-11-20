@@ -7,7 +7,7 @@ import { S, fmtCash, rankFor, DISTRICTS } from './config.js';
 import { sfxCash, sfxFail } from './audio.js';
 
 export const MISSIONS = [
-  { giver: 'LUPE',   title: 'First Fix',      type: 'goto',    target: [-40, -192], time: 180, reward: 400,  brief: 'Meet Lupe at MO\u2019S on Neon Row. She has your first job.' },
+  { giver: 'LUPE',   title: 'First Fix',      type: 'goto',    target: [-40, -192], time: 200, reward: 400,  brief: 'Meet Lupe at MO\u2019S on Neon Row. She has your first job.' },
   { giver: 'SULLY',  title: 'Tow Job',        type: 'driveTo', target: [192, 192],  time: 240, reward: 650,  brief: 'Sully needs a car moved to Dockside. Grab wheels and drive it there.' },
   { giver: 'MARCO',  title: 'Marco\u2019s Run', type: 'driveTo', target: [-192, 192], time: 210, reward: 800,  brief: 'Marco\u2019s package goes to Old Port. Drive it there, no scratches.' },
   { giver: 'BRANDT', title: 'The Ledger',     type: 'hold',    target: [64, 64],    time: 240, reward: 1100, brief: 'Brandt\u2019s ledger is in the Downtown office. Hold the spot 5s to lift it.' },
@@ -51,12 +51,14 @@ export function buildMissions(scene) {
   startCyl.position.set(-40, 3.5, -192);
   scene.add(startCyl);
 
-  // pink safehouse cylinder at MO'S / Lupe's (always visible)
+  // pink safehouse cylinder at MO'S / Lupe's — offset from the yellow start
+  // cylinder (which sits at the mission target) so the two markers never
+  // overlap; it stands in front of the MO'S neon sign instead.
   safeCyl = new THREE.Mesh(
     new THREE.CylinderGeometry(2.2, 2.2, 6, 20, 1, true),
     new THREE.MeshBasicMaterial({ color: 0xff2e88, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })
   );
-  safeCyl.position.set(-40, 3, -192);
+  safeCyl.position.set(-52, 3, -178);
   scene.add(safeCyl);
 }
 

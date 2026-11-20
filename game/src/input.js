@@ -19,6 +19,7 @@ export function initInput(canvas) {
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
   window.addEventListener('blur', () => {
     for (const k of Object.keys(keys)) keys[k] = false;
+    for (const k of Object.keys(pressed)) pressed[k] = false; // no stuck one-shot actions after alt-tab
     mouse.down = false; mouse.clicked = false; dragLast = null; // no stuck drag after alt-tab
   });
 

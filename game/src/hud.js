@@ -23,7 +23,8 @@ export function buildHUD(opts = {}) {
       <div class="subtitle">ACT I — FIRST FIX · an open-world crime game</div>
       <div class="start-body">
         You are <b>Kai Mercer</b>. Lupe has work for you — 8 jobs across 7 districts.<br>
-        Jack cars, lose the heat, climb from <b>ROOKIE</b> to <b>FIXER</b>.
+        Jack cars, lose the heat, climb from <b>ROOKIE</b> to <b>FIXER</b>.<br>
+        20 <b>Golden Geckos</b> are hidden around the city — find them all.
       </div>
       <div class="start-btns">
         <button id="start-btn">NEW GAME</button>
@@ -236,7 +237,7 @@ function drawDialogue(name, line) {
   g.beginPath(); g.arc(36, 46, 8, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
 }
 
-export function toast(text, secs = 3) {
+export function toast(text, secs = 3.5) {
   els.toast.textContent = text;
   els.toast.style.opacity = '1';
   clearTimeout(toast._t);

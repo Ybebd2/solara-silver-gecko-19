@@ -263,9 +263,9 @@ function spawnParkedCar(scene, x, z, heading) {
 
 export function buildVehicles(scene) {
   sceneRef = scene;
-  // dense varied traffic: 18 sedans, 2 taxis, 2 boxy vans, 2 sports cars,
+  // dense varied traffic: 20 sedans, 2 taxis, 2 boxy vans, 2 sports cars,
   // 2 white police cruisers on patrol
-  for (let i = 0; i < 18; i++) spawnTrafficCar(scene);
+  for (let i = 0; i < 20; i++) spawnTrafficCar(scene);
   spawnTrafficCar(scene, { taxi: true });
   spawnTrafficCar(scene, { taxi: true });
   spawnTrafficCar(scene, { van: true });
@@ -283,6 +283,7 @@ export function buildVehicles(scene) {
     [-56, 74, 0], [-8, 74, Math.PI], [24, 54, 0], [-72, 54, Math.PI],
     [16, -182, 0], [-56, -182, Math.PI], [8, -202, 0], [-64, -202, Math.PI],
     [120, 74, 0], [-136, 74, Math.PI],
+    [-16, -182, Math.PI], [40, -202, 0],
   ];
   for (const [x, z, h] of spots) spawnParkedCar(scene, x, z, h);
 }
@@ -356,7 +357,7 @@ export function exitCar() {
 export function driveTick(dt, keys) {
   const car = S.car;
   if (!car) return;
-  const top = 38, accel = 16, brake = 26, drag = 0.6;
+  const top = 40, accel = 16, brake = 26, drag = 0.6;
   if (keys['KeyW'] || keys['ArrowUp']) car.speed += accel * dt;
   if (keys['KeyS'] || keys['ArrowDown']) car.speed -= (car.speed > 0.5 ? brake : accel * 0.6) * dt;
   car.speed -= car.speed * drag * dt;
