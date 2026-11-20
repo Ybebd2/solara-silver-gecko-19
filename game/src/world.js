@@ -240,6 +240,7 @@ export function buildWorld(scene) {
         for (let t = 0; t < 5; t++) {
           const tx = bx + (rand() - 0.5) * 36;
           const tz = bz + (rand() - 0.5) * 36;
+          if (Math.hypot(tx - (-40), tz - (-184)) < 20) continue; // keep spawn camera orbit clear
           plantTree(scene, tx, tz);
         }
         continue;
@@ -346,6 +347,7 @@ export function buildWorld(scene) {
     const tx = -260 + rand() * 520;
     const tz = -280 + rand() * 560;
     if (solidAt(tx, tz)) continue;
+    if (Math.hypot(tx - (-40), tz - (-184)) < 20) continue; // keep spawn camera orbit clear
     plantTree(scene, tx, tz);
   }
 
