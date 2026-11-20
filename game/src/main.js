@@ -29,7 +29,7 @@ let menuT = 0;
 // Round 6: the city looked empty because 28 peds were scattered over a
 // 480x480 m area and wandered off-road. Now 64 walkers live ON the
 // sidewalks (offset +/-12.5 from the road centre lines), in GROUPS of 2-4
-// walking together, scaled 1.3x so they read as people, in hot bright
+// walking together, scaled 1.45x so they read as people, in hot bright
 // shirts (pink, yellow, cyan, purple, orange, lime) that pop against the
 // cream sidewalk. They RUN AWAY when a carjack happens nearby.
 const PED_SHIRTS = [0xff2e63, 0xffd23a, 0x00d4ff, 0x9b59b6, 0xff5722, 0x76ff03, 0xff4081, 0xffffff];

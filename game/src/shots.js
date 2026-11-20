@@ -1,6 +1,6 @@
 // SOLARA — shots.js
 // The 4 dossier screenshot setups, driven by ?shot=1..4 in the URL.
-// Each shot is staged so the new round-5 details are VISIBLE in the frame:
+// Each shot is staged so the new round-6 details are VISIBLE in the frame:
 // 1 = start menu over beach + towers, 2 = packed multi-lane street + towers,
 // 3 = Kai on foot, weapon visible, mission panel + stars, 4 = chase with
 // helicopter + police response panel. No other file reads the URL.

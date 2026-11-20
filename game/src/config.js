@@ -1,6 +1,6 @@
 // SOLARA — config.js
 // All tuning, districts, weapons, ranks, radio and shared game state.
-// Written fresh for SOLARA (zesty-condor-69-fresh). No code copied from any
+// Written fresh for SOLARA (silver-gecko-19). No code copied from any
 // other entry or starter.
 
 export const WORLD = {

@@ -1,7 +1,8 @@
 // SOLARA — world.js
-// Golden-hour coastal city: road grid, buildings with lit windows, neon
-// storefront signs (canvas textures with real readable text), beach + ocean,
-// palms, streetlights, props. Districts from config.js.
+// Bright daytime coastal city: road grid, pastel buildings with lit
+// windows, neon storefront signs (canvas textures with real readable
+// text), beach + turquoise ocean, palms, streetlights, props.
+// Districts from config.js.
 
 import * as THREE from 'three';
 import { WORLD, DISTRICTS } from './config.js';
@@ -74,7 +75,7 @@ function makeRoadTexture(alongX) {
 }
 
 // Gold/teal diamond-pattern glass for the downtown skyscrapers: a grid of
-// diamonds that reads as a faceted tower facade in golden hour.
+// diamonds that reads as a faceted tower facade in bright daylight.
 function makeDiamondTexture(base, diamond, lit) {
   const c = document.createElement('canvas');
   c.width = 128; c.height = 256;
