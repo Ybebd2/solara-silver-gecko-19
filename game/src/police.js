@@ -303,7 +303,9 @@ export function policeTick(dt) {
   heliBeam.visible = heliOn;
   heliPool.visible = heliOn;
   if (heliOn) {
-    const bob = Math.sin(S.time * 1.4) * 1.2;
+    // steadier hover (bob 1.2 -> 1.0) so the beam pool stays planted on Kai
+    // instead of wandering off the road while the heli bobs.
+    const bob = Math.sin(S.time * 1.4) * 1.0;
     const hx = S.px + Math.sin(S.time * 0.5) * 6;
     const hz = S.pz + Math.cos(S.time * 0.4) * 6;
     const hy = 24 + bob;

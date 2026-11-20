@@ -35,7 +35,7 @@ export const DISTRICTS = [
 ];
 
 export const WEAPONS = [
-  { name: 'VESPER', kind: 'gun', dmg: 34, mag: 12, range: 120, rate: 0.25, auto: false },
+  { name: 'VESPER', kind: 'gun', dmg: 36, mag: 12, range: 120, rate: 0.25, auto: false },
   { name: 'JACKAL', kind: 'gun', dmg: 18, mag: 30, range: 90, rate: 0.09, auto: true },
   { name: 'LONGSHOT', kind: 'gun', dmg: 80, mag: 5, range: 180, rate: 0.8, auto: false },
   { name: 'RIOT', kind: 'gun', dmg: 12, mag: 6, range: 40, rate: 0.7, auto: false, pellets: 6 },
