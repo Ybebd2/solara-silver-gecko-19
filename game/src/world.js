@@ -3,7 +3,7 @@
 // storefront signs (canvas textures with real readable text), beach + ocean,
 // palms, streetlights, props. Districts from config.js.
 
-import * as THREE from '../vendor/three/three.module.js';
+import * as THREE from 'three';
 import { WORLD, DISTRICTS } from './config.js';
 
 export const colliders = [];   // {x, z, hx, hz} building AABBs

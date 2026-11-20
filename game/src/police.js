@@ -2,7 +2,7 @@
 // Wanted system: 5 stars, cruisers + officers chase, helicopter at 3 stars,
 // EVADING meter fills while unseen — 100% drops a star.
 
-import * as THREE from '../vendor/three/three.module.js';
+import * as THREE from 'three';
 import { S, clamp } from './config.js';
 import { makeCar } from './vehicles.js';
 import { addShootTarget, removeShootTarget } from './player.js';

@@ -2,7 +2,7 @@
 // The 8-job chain: Lupe, Sully, Marco, Brandt, Aurora. Each job has a timed
 // clock, a 3D beacon + HUD distance, and a rank payout. Ranks: ROOKIE → FIXER.
 
-import * as THREE from '../vendor/three/three.module.js';
+import * as THREE from 'three';
 import { S, fmtCash, rankFor } from './config.js';
 import { sfxCash, sfxFail } from './audio.js';
 

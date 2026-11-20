@@ -2,7 +2,7 @@
 // Entrypoint + game loop. Builds the scene, wires every system, runs the
 // third-person camera, and exposes window.__solara for debugging.
 
-import * as THREE from '../vendor/three/three.module.js';
+import * as THREE from 'three';
 import { S, WORLD, WEAPONS, RADIO, CREW, clamp, lerp, rankFor } from './config.js';
 import { keys, pressed, mouse, initInput, endFrameInput } from './input.js';
 import { buildWorld } from './world.js';

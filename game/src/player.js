@@ -2,7 +2,7 @@
 // Kai Mercer on foot: walk / sprint, camera-relative turning, shooting the
 // VESPER (and other weapons), muzzle flash, hit feedback.
 
-import * as THREE from '../vendor/three/three.module.js';
+import * as THREE from 'three';
 import { S, WEAPONS, clamp } from './config.js';
 import { resolveCollisions } from './world.js';
 import { keys } from './input.js';

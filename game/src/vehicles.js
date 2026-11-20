@@ -3,7 +3,7 @@
 // hubcaps, headlight + horizontal taillight strip. Traffic AI follows the
 // road grid. Player driving + carjacking live here.
 
-import * as THREE from '../vendor/three/three.module.js';
+import * as THREE from 'three';
 import { S, WORLD, clamp } from './config.js';
 import { resolveCollisions, isOnRoad } from './world.js';
 import { sfxDoor } from './audio.js';
