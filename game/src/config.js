@@ -6,20 +6,20 @@
 export const WORLD = {
   size: 640,            // playable square, metres (x and z in [-320, 320])
   roadGap: 64,          // distance between road centre lines
-  roadWidth: 14,
+  roadWidth: 20,        // 4 lanes (two each way) with dashed lane lines
   beachX: -268,         // west of this is sand, then ocean
   oceanX: -300,
   blockSize: 50,
 };
 
 export const DISTRICTS = [
-  { name: 'MARINA BAY',   x: -210, z: -210, r: 90,  color: '#4fc3f7' },
-  { name: 'OLD PORT',     x: -210, z:  210, r: 90,  color: '#ffb74d' },
-  { name: 'DOWNTOWN',     x:    0, z:    0, r: 110, color: '#ff5252' },
-  { name: 'NEON ROW',     x:    0, z: -190, r: 80,  color: '#e040fb' },
-  { name: 'PALM HEIGHTS', x:  190, z: -190, r: 90,  color: '#69f0ae' },
-  { name: 'DOCKSIDE',     x:  190, z:  190, r: 90,  color: '#ffd54f' },
-  { name: 'SOLARA BEACH', x: -280, z:    0, r: 90,  color: '#fff176' },
+  { name: 'MARINA BAY',   x: -210, z: -210, r: 90,  color: '#4fc3f7', grip: 55 },
+  { name: 'OLD PORT',     x: -210, z:  210, r: 90,  color: '#ffb74d', grip: 45 },
+  { name: 'DOWNTOWN',     x:    0, z:    0, r: 110, color: '#ff5252', grip: 30 },
+  { name: 'NEON ROW',     x:    0, z: -190, r: 80,  color: '#e040fb', grip: 35 },
+  { name: 'PALM HEIGHTS', x:  190, z: -190, r: 90,  color: '#69f0ae', grip: 50 },
+  { name: 'DOCKSIDE',     x:  190, z:  190, r: 90,  color: '#ffd54f', grip: 40 },
+  { name: 'SOLARA BEACH', x: -280, z:    0, r: 90,  color: '#fff176', grip: 50 },
 ];
 
 export const WEAPONS = [
@@ -38,9 +38,9 @@ export const RANKS = [
 ];
 
 export const RADIO = [
-  { name: 'PUERTO 88.3',  desc: 'latin gold',  hue: 0 },
-  { name: 'CELESTE 98.1', desc: 'synthwave',   hue: 1 },
-  { name: 'SOLARA 98.3',  desc: 'golden hour', hue: 2 },
+  { name: 'PUERTO 88.3',  desc: 'latin gold',  hue: 0, song: 'Celia Cruz — Quimbara' },
+  { name: 'CELESTE 98.1', desc: 'synthwave',   hue: 1, song: 'Midnight Drive — Neon Palms' },
+  { name: 'SOLARA 98.3',  desc: 'golden hour', hue: 2, song: 'Kai & The Coast — Golden Hour' },
 ];
 
 export const CREW = {
@@ -57,7 +57,9 @@ export const S = {
   started: false,
   // player
   px: -40, pz: 60, heading: Math.PI * 0.75, speed: 0,
-  health: 100, cash: 250, wanted: 0, evading: 0, seen: false,
+  health: 100, armour: 40, cash: 250, wanted: 0, evading: 0, seen: false,
+  soundOn: true, dialogueUntil: 0,
+  autopilot: false, jackedAt: -99, gripBonus: 0, shotMode: false,
   weaponIdx: 0, ammo: 12, reserve: 48,
   inCar: false, car: null, carSpeed: 0,
   // missions

@@ -106,65 +106,154 @@ export function makeCar(color, opts = {}) {
     wheels.push(wheel);
   }
 
+  // side skirts (low side panels, read as a sporty stance)
+  for (const sx of [-1.0, 1.0]) {
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 3.4), dark);
+    skirt.position.set(sx, 0.28, -0.2);
+    g.add(skirt);
+  }
+
   if (opts.police) {
-    // black-and-white cruiser: white doors, light bar, push bar
-    const door = new THREE.Mesh(new THREE.BoxGeometry(2.02, 0.4, 1.5), new THREE.MeshStandardMaterial({ color: 0xf5f5f5, metalness: 0.4, roughness: 0.4 }));
-    door.position.set(0, 0.62, -0.2);
-    g.add(door);
+    // white sedan, black hood + roof, thin gold line down the side,
+    // red light bar on the roof (Tangerine Mile cruiser style)
+    const hoodBlack = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.1, 1.3), dark);
+    hoodBlack.position.set(0, 0.98, 1.55);
+    hoodBlack.rotation.x = -0.16;
+    g.add(hoodBlack);
+    const roofBlack = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.1, 1.7), dark);
+    roofBlack.position.set(0, 1.36, -0.35);
+    g.add(roofBlack);
+    for (const sx of [-1.02, 1.02]) {
+      const gold = new THREE.Mesh(
+        new THREE.BoxGeometry(0.04, 0.08, 4.0),
+        new THREE.MeshBasicMaterial({ color: 0xc9a227 })
+      );
+      gold.position.set(sx, 0.62, -0.2);
+      g.add(gold);
+    }
     const bar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.3), dark);
-    bar.position.set(0, 1.42, -0.35);
+    bar.position.set(0, 1.48, -0.35);
     g.add(bar);
-    const red = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 0.3), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
-    red.position.set(-0.38, 1.5, -0.35);
+    const red = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.14, 0.3), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
+    red.position.set(0, 1.56, -0.35);
     g.add(red);
-    const blue = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 0.3), new THREE.MeshBasicMaterial({ color: 0x2040ff }));
-    blue.position.set(0.38, 1.5, -0.35);
-    g.add(blue);
-    g.userData.lightRed = red; g.userData.lightBlue = blue;
+    g.userData.lightRed = red; g.userData.lightBlue = null;
     const push = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.3, 0.12), dark);
     push.position.set(0, 0.45, 2.38);
     g.add(push);
+  }
+
+  if (opts.taxi) {
+    // yellow roof sign + taxi checker band
+    const sign = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.28, 0.35),
+      new THREE.MeshBasicMaterial({ color: 0xffd23a })
+    );
+    sign.position.set(0, 1.55, -0.35);
+    g.add(sign);
+    for (const sx of [-1.02, 1.02]) {
+      const band = new THREE.Mesh(
+        new THREE.BoxGeometry(0.04, 0.22, 3.2),
+        new THREE.MeshBasicMaterial({ color: 0x111111 })
+      );
+      band.position.set(sx, 0.7, -0.2);
+      g.add(band);
+    }
+  }
+
+  if (opts.van) {
+    // boxy van: tall cargo box instead of the low cabin
+    const box = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.5, 3.4), paint);
+    box.position.set(0, 1.15, -0.6);
+    g.add(box);
+    const vwin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 0.08), glass);
+    vwin.position.set(0, 1.35, 1.15);
+    g.add(vwin);
+  }
+
+  if (opts.sports) {
+    // pop-up headlights ON: two bright white squares raised above the hood
+    for (const hx of [-0.65, 0.65]) {
+      const pop = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.18, 0.5),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      pop.position.set(hx, 1.05, 1.85);
+      g.add(pop);
+    }
   }
 
   g.traverse((o) => { if (o.isMesh) o.castShadow = false; });
   return { group: g, wheels };
 }
 
-function spawnTrafficCar(scene) {
+const CAR_NAMES = {
+  sedan: ['COMET', 'FALCON', 'DUCHESS', 'MERIDIAN', 'SOLSTICE', 'VAGABOND'],
+  taxi: ['CABRIO TAXI', 'CITY CAB'],
+  van: ['HAULER', 'CARGO VAN'],
+  sports: ['VORTEX GT', 'NIGHTHAWK S'],
+  police: ['CRUISER', 'INTERCEPTOR'],
+};
+function pickName(kind) {
+  const list = CAR_NAMES[kind] || CAR_NAMES.sedan;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function spawnTrafficCar(scene, opts = {}) {
   const roads = [-256, -192, -128, -64, 0, 64, 128, 192, 256];
   const horizontal = Math.random() < 0.5;
   const road = roads[Math.floor(Math.random() * roads.length)];
-  const color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
-  const { group, wheels } = makeCar(color);
+  // 4 lanes: two each way — lane offset 2.5 (inner) or 7.5 (outer)
+  const lane = Math.random() < 0.5 ? 2.5 : 7.5;
   const dir = Math.random() < 0.5 ? 1 : -1;
+  const off = dir > 0 ? lane : -lane;
+  let color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+  let carOpts = {};
+  if (opts.police) { color = 0xf5f5f5; carOpts = { police: true }; }
+  else if (opts.taxi) { color = 0xf1c40f; carOpts = { taxi: true }; }
+  else if (opts.van) { color = [0xecf0f1, 0x7f8c8d, 0x2e86c1][Math.floor(Math.random() * 3)]; carOpts = { van: true }; }
+  else if (opts.sports) { carOpts = { sports: true }; }
+  const { group, wheels } = makeCar(color, carOpts);
   const t = (Math.random() - 0.5) * 500;
   if (horizontal) {
-    group.position.set(t, 0, road + (dir > 0 ? 3.5 : -3.5));
+    group.position.set(t, 0, road + off);
     group.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
   } else {
-    group.position.set(road + (dir > 0 ? 3.5 : -3.5), 0, t);
+    group.position.set(road + off, 0, t);
     group.rotation.y = dir > 0 ? 0 : Math.PI;
   }
   scene.add(group);
-  const car = { group, wheels, road, dir, horizontal, speed: 7 + Math.random() * 6, color };
+  const kind = opts.police ? 'police' : opts.taxi ? 'taxi' : opts.van ? 'van' : opts.sports ? 'sports' : 'sedan';
+  const car = { group, wheels, road, dir, horizontal, speed: 7 + Math.random() * 6, color, kind, name: pickName(kind) };
   traffic.push(car);
   return car;
 }
 
 function spawnParkedCar(scene, x, z, heading) {
   const color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
-  const { group, wheels } = makeCar(color);
+  const sports = Math.random() < 0.25;
+  const { group, wheels } = makeCar(color, sports ? { sports: true } : {});
   group.position.set(x, 0, z);
   group.rotation.y = heading;
   scene.add(group);
-  const car = { group, wheels, x, z, heading, taken: false };
+  const car = { group, wheels, x, z, heading, taken: false, kind: sports ? 'sports' : 'sedan', name: pickName(sports ? 'sports' : 'sedan') };
   parked.push(car);
   return car;
 }
 
 export function buildVehicles(scene) {
   sceneRef = scene;
+  // dense varied traffic: sedans, 2 taxis, 2 boxy vans, 2 sports cars,
+  // 2 white police cruisers on patrol
   for (let i = 0; i < 16; i++) spawnTrafficCar(scene);
+  spawnTrafficCar(scene, { taxi: true });
+  spawnTrafficCar(scene, { taxi: true });
+  spawnTrafficCar(scene, { van: true });
+  spawnTrafficCar(scene, { van: true });
+  spawnTrafficCar(scene, { sports: true });
+  spawnTrafficCar(scene, { sports: true });
+  spawnTrafficCar(scene, { police: true });
+  spawnTrafficCar(scene, { police: true });
   // parked cars along roads near spawn and downtown
   const spots = [
     [-40, 74, 0], [-24, 74, Math.PI], [8, -50, Math.PI / 2], [72, 8, 0],
@@ -216,7 +305,7 @@ export function enterCar(cand) {
   const car = {
     group: cand.ref.group, wheels: cand.ref.wheels,
     heading: cand.heading, speed: 0, health: 100,
-    x: cand.x, z: cand.z,
+    x: cand.x, z: cand.z, name: cand.ref.name || 'COMET', kind: cand.ref.kind || 'sedan',
   };
   S.inCar = true;
   S.car = car;

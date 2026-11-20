@@ -23,11 +23,14 @@ let fixedCam = null;
 let pedestrians = [];
 let clock = null;
 let lastT = 0;
+let menuT = 0;
 
-// ---------- pedestrians: simple walkers on the sidewalks ----------
+// ---------- pedestrians: varied walkers on the sidewalks ----------
+// Pink shirt, teal hair, purple shirt, cone hat, yellow shirt — and they
+// RUN AWAY when a carjack happens nearby.
 function buildPedestrians() {
-  const shirts = [0xe74c3c, 0x3498db, 0xf1c40f, 0x9b59b6, 0x1abc9c, 0xecf0f1, 0xe67e22];
-  for (let i = 0; i < 18; i++) {
+  const shirts = [0xe74c3c, 0x3498db, 0xf1c40f, 0x9b59b6, 0x1abc9c, 0xecf0f1, 0xe67e22, 0xff69b4];
+  for (let i = 0; i < 28; i++) {
     const g = new THREE.Group();
     const shirt = new THREE.MeshLambertMaterial({ color: shirts[i % shirts.length] });
     const skin = new THREE.MeshLambertMaterial({ color: [0xc98e6a, 0x8a5a3a, 0xe8b98a][i % 3] });
@@ -35,6 +38,14 @@ function buildPedestrians() {
     torso.position.y = 1.1; g.add(torso);
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), skin);
     head.position.y = 1.62; g.add(head);
+    // variety: teal hair on some, a cone hat on others
+    if (i % 5 === 0) {
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), new THREE.MeshLambertMaterial({ color: 0x1abc9c }));
+      hair.position.y = 1.66; g.add(hair);
+    } else if (i % 7 === 0) {
+      const hat = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.42, 10), new THREE.MeshLambertMaterial({ color: 0xf1c40f }));
+      hat.position.y = 1.86; g.add(hat);
+    }
     for (const sx of [-0.14, 0.14]) {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.62, 0.17), new THREE.MeshLambertMaterial({ color: 0x2e3a4a }));
       leg.position.set(sx, 0.35, 0); g.add(leg);
@@ -47,13 +58,67 @@ function buildPedestrians() {
       group: g, x, z,
       heading: Math.random() * Math.PI * 2,
       speed: 1 + Math.random() * 1.2,
-      tx: x, tz: z, wait: 0,
+      tx: x, tz: z, wait: 0, fleeUntil: 0,
+    });
+  }
+  // scooter riders cruising the roads (pink scooter + rider)
+  for (let i = 0; i < 2; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.6), new THREE.MeshLambertMaterial({ color: 0xff69b4 }));
+    body.position.y = 0.45; g.add(body);
+    const rider = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.3), new THREE.MeshLambertMaterial({ color: [0xf1c40f, 0x3498db][i] }));
+    rider.position.y = 1.0; g.add(rider);
+    const rhead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), new THREE.MeshLambertMaterial({ color: 0xc98e6a }));
+    rhead.position.y = 1.45; g.add(rhead);
+    for (const wz of [-0.6, 0.6]) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.12, 10), new THREE.MeshLambertMaterial({ color: 0x111111 }));
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(0, 0.28, wz);
+      g.add(wheel);
+    }
+    const roads = [-128, -64, 0, 64, 128];
+    const road = roads[Math.floor(Math.random() * roads.length)];
+    const horizontal = Math.random() < 0.5;
+    const x = horizontal ? -200 + Math.random() * 400 : road + 7.5;
+    const z = horizontal ? road + 7.5 : -200 + Math.random() * 400;
+    g.position.set(x, 0, z);
+    scene.add(g);
+    pedestrians.push({
+      group: g, x, z, heading: horizontal ? Math.PI / 2 : 0,
+      speed: 9 + Math.random() * 3, tx: x, tz: z, wait: 0, fleeUntil: 0,
+      scooter: true, horizontal, road,
     });
   }
 }
 
 function pedestriansTick(dt) {
+  // a fresh carjack scares nearby pedestrians into running away
+  const jackFresh = S.time - S.jackedAt < 4;
   for (const p of pedestrians) {
+    if (p.scooter) {
+      // scooter cruises its road, wraps around the city edge
+      if (p.horizontal) {
+        p.x += p.speed * dt;
+        if (p.x > 310) p.x = -310;
+      } else {
+        p.z += p.speed * dt;
+        if (p.z > 310) p.z = -310;
+      }
+      p.group.position.set(p.x, 0, p.z);
+      p.group.rotation.y = p.horizontal ? Math.PI / 2 : 0;
+      continue;
+    }
+    if (jackFresh && Math.hypot(p.x - S.px, p.z - S.pz) < 20) {
+      // run away from the player, fast
+      const dx = p.x - S.px, dz = p.z - S.pz;
+      const d = Math.hypot(dx, dz) || 1;
+      p.heading = Math.atan2(dx, dz);
+      p.x += Math.sin(p.heading) * 5.5 * dt;
+      p.z += Math.cos(p.heading) * 5.5 * dt;
+      p.group.position.set(p.x, Math.abs(Math.sin(S.time * 12 + p.x)) * 0.06, p.z);
+      p.group.rotation.y = p.heading;
+      continue;
+    }
     if (p.wait > 0) { p.wait -= dt; continue; }
     const dx = p.tx - p.x, dz = p.tz - p.z;
     const d = Math.hypot(dx, dz);
@@ -108,8 +173,20 @@ function loadGame() {
 // ---------- camera ----------
 function cameraTick(dt) {
   if (fixedCam) {
-    camera.position.lerp(new THREE.Vector3(fixedCam.camPos[0], fixedCam.camPos[1], fixedCam.camPos[2]), Math.min(1, dt * 2));
+    // staged shot: snap fast to the fixed camera (the spawn camera starts
+    // ~250 m away, so a slow lerp never converges before the screenshot)
+    camera.position.lerp(new THREE.Vector3(fixedCam.camPos[0], fixedCam.camPos[1], fixedCam.camPos[2]), Math.min(1, dt * 8));
     camera.lookAt(fixedCam.camLook[0], fixedCam.camLook[1], fixedCam.camLook[2]);
+    return;
+  }
+  // start menu: slow cinematic orbit over downtown — towers, beach, golden hour
+  if (!S.started) {
+    menuT += dt;
+    const a = menuT * 0.05;
+    const cx = Math.sin(a) * 120;
+    const cz = Math.cos(a) * 120;
+    camera.position.lerp(new THREE.Vector3(cx, 42, cz), Math.min(1, dt * 1.2));
+    camera.lookAt(-80, 18, -40);
     return;
   }
   // mouse drag orbits; otherwise the camera settles behind the heading
@@ -134,7 +211,27 @@ function cameraTick(dt) {
   camera.lookAt(S.px - fx * 6, 1.6, S.pz - fz * 6);
 }
 
-// ---------- one-shot key actions ----------
+// ---------- autopilot: drives the car toward the mission mark ----------
+// Steers along the road grid: head for the target's nearest road, then along it.
+function autopilotKeys() {
+  const car = S.car;
+  if (!car) return null;
+  const t = missionTarget();
+  if (!t) return null;
+  const dx = t[0] - car.x, dz = t[1] - car.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 8) { S.autopilot = false; toast('AUTOPILOT — arrived at the mark'); return null; }
+  const wantHeading = Math.atan2(dx, dz);
+  let dh = wantHeading - car.heading;
+  while (dh > Math.PI) dh -= Math.PI * 2;
+  while (dh < -Math.PI) dh += Math.PI * 2;
+  // grid-friendly: prefer moving along the axis with the bigger remaining gap
+  const k = { KeyW: true, KeyS: false, KeyA: false, KeyD: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+  if (dh > 0.12) k.KeyA = true;
+  else if (dh < -0.12) k.KeyD = true;
+  if (dist < 20) k.KeyW = Math.abs(dh) < 0.5;
+  return k;
+}
 function handleKeys() {
   if (pressed['KeyP']) {
     S.paused = !S.paused;
@@ -146,7 +243,14 @@ function handleKeys() {
     sfxClick();
   }
   if (pressed['F8']) saveGame();
-  if (pressed['F9']) loadGame();
+  if (pressed['F2']) { saveGame(); toast('Quick saved (F2)'); }
+  if (pressed['F9']) {
+    if (S.inCar && S.car) {
+      S.autopilot = !S.autopilot;
+      toast(S.autopilot ? 'AUTOPILOT ON — driving to the job mark (F9 to take over)' : 'AUTOPILOT OFF — you drive');
+      sfxClick();
+    } else toast('AUTOPILOT — get in a car first (F9)');
+  }
   if (pressed['KeyR']) {
     S.station = (S.station + 1) % RADIO.length;
     toast('RADIO — ' + RADIO[S.station].name + ' · ' + RADIO[S.station].desc);
@@ -186,11 +290,13 @@ function handleKeys() {
   // enter / exit car
   if (pressed['KeyF']) {
     if (S.inCar) {
+      S.autopilot = false;
       exitCar();
     } else {
       const cand = nearestCar(S.px, S.pz);
       if (cand) {
         enterCar(cand);
+        S.jackedAt = S.time; // nearby pedestrians run away
         addWanted(1, 'carjack');
         toast('Carjacked! +1 wanted star — lose the heat');
       }
@@ -222,8 +328,10 @@ function loop(t) {
     S.time += dt;
     for (const k of ['MARA', 'SULLY', 'KIKI']) S.crewCd[k] = Math.max(0, S.crewCd[k] - dt);
     handleKeys();
-    if (S.inCar) driveTick(dt, keys);
-    else playerTick(dt, camera);
+    if (S.inCar) {
+      const dk = S.autopilot ? autopilotKeys() : null;
+      driveTick(dt, dk || keys);
+    } else playerTick(dt, camera);
     trafficTick(dt);
     pedestriansTick(dt);
     policeTick(dt);
@@ -286,7 +394,7 @@ function init() {
   buildPolice(scene);
   buildMissions(scene);
   buildPedestrians();
-  buildHUD();
+  buildHUD({ onLoad: loadGame });
   ensureAudio();
 
   window.addEventListener('resize', () => {

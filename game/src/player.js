@@ -63,9 +63,10 @@ export function buildPlayer(scene) {
     shoe.position.set(sx, 0.05, 0.05);
     kai.add(shoe);
   }
-  // VESPER pistol in the right hand
-  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.3), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
-  gun.position.set(0.4, 0.95, 0.22);
+  // VESPER pistol in the right hand — silver, oversized so it reads clearly
+  // as a weapon in screenshots (Kai on foot, weapon visible)
+  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.22, 0.5), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, metalness: 0.9, roughness: 0.25 }));
+  gun.position.set(0.42, 0.95, 0.3);
   kai.add(gun);
   muzzle = new THREE.Mesh(
     new THREE.SphereGeometry(0.12, 8, 8),

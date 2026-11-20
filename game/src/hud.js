@@ -3,9 +3,10 @@
 // with the timed-job clock, minimap, radio toast, messages, pause + map
 // overlays, crew cooldowns, crosshair, start screen.
 
-import { S, DISTRICTS, WORLD, WEAPONS, fmtCash, fmtClock, districtAt } from './config.js';
+import { S, DISTRICTS, WORLD, WEAPONS, RADIO, fmtCash, fmtClock, districtAt } from './config.js';
 import { currentMission, missionDistance, missionTarget } from './missions.js';
-import { cruisers, officers } from './police.js';
+import { cruisers, officers, policeUnits } from './police.js';
+import { nearestCar } from './vehicles.js';
 
 let els = {};
 let minimap = null;
@@ -13,15 +14,25 @@ let mapCanvas = null;
 let mapZoom = 1;
 let mapPan = { x: 0, z: 0 };
 
-export function buildHUD() {
+export function buildHUD(opts = {}) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <div id="start-screen">
       <div class="title">SOLARA</div>
-      <div class="subtitle">an open-world crime game · golden-hour coastal city</div>
+      <div class="subtitle">ACT I — FIRST FIX · an open-world crime game</div>
       <div class="start-body">
         You are <b>Kai Mercer</b>. Lupe has work for you — 8 jobs across 7 districts.<br>
         Jack cars, lose the heat, climb from <b>ROOKIE</b> to <b>FIXER</b>.
+      </div>
+      <div class="start-btns">
+        <button id="start-btn">NEW GAME</button>
+        <button id="load-btn" class="menu-btn">LOAD GAME</button>
+        <button id="settings-btn" class="menu-btn">SETTINGS</button>
+      </div>
+      <div id="settings-panel" style="display:none">
+        <label><input type="checkbox" id="set-sound" checked> Sound</label>
+        <label><input type="checkbox" id="set-radio" checked> Radio</label>
+        <label><input type="checkbox" id="set-hud" checked> Full HUD</label>
       </div>
       <div class="controls-grid">
         <span>WASD</span><span>walk / drive</span>
@@ -32,37 +43,55 @@ export function buildHUD() {
         <span>Z / X / C</span><span>crew: Mara · Sully · Kiki</span>
         <span>R</span><span>radio station</span>
         <span>M</span><span>map · click to set waypoint</span>
-        <span>F8 / F9</span><span>save / load</span>
+        <span>F2 / F8</span><span>quick save / save</span>
+        <span>F9</span><span>autopilot (in car)</span>
         <span>P</span><span>pause</span>
       </div>
-      <button id="start-btn">START ENGINE</button>
       <div class="start-foot">Wanted stars rise when you jack cars or hit cops. Lose the heat to drop them.</div>
     </div>
     <div id="top-left">
       <div id="cash">$250</div>
       <div id="rank">ROOKIE · 0/8 JOBS</div>
-      <div id="district">DOWNTOWN</div>
+      <div id="rp-bar"><div id="rp-fill"></div></div>
+      <div id="district">DOWNTOWN · GRIP 30%</div>
       <div id="mission-panel">
         <div id="mission-title">NO JOB ACTIVE</div>
         <div id="mission-brief">Find the yellow beacon — press E to start the job.</div>
         <div id="mission-meta"><span id="mission-clock">--:--</span><span id="mission-dist"></span></div>
-        <div id="mission-bar"><div id="mission-fill"></div></div>
+        <div id="mission-segs"><span></span><span></span><span></span><span></span></div>
+      </div>
+      <div id="response-panel" style="display:none">
+        <div id="response-title">POLICE RESPONSE</div>
+        <div id="response-list"></div>
       </div>
     </div>
     <div id="top-right">
       <div id="stars">☆☆☆☆☆</div>
+      <div id="seen-badge" style="display:none">HIDDEN</div>
       <div id="evade-wrap"><div id="evade-label">EVADING</div><div id="evade-bar"><div id="evade-fill"></div></div></div>
       <div id="health-wrap"><div id="health-label">HEALTH</div><div id="health-bar"><div id="health-fill"></div></div></div>
+      <div id="armour-wrap"><div id="armour-label">ARMOUR</div><div id="armour-bar"><div id="armour-fill"></div></div></div>
     </div>
     <div id="bottom-left">
       <div id="weapon">VESPER</div>
       <div id="ammo">12 / 48</div>
+      <div id="vehicle-hud" style="display:none">
+        <div id="car-name">COMET</div>
+        <div id="car-cond"><div id="car-cond-fill"></div></div>
+        <div id="car-line"><span id="car-speed">0 km/h</span> · <span id="car-gear">G1</span> · <span id="car-radio">SOLARA 98.3</span></div>
+        <div id="car-song">Golden Hour — Kai &amp; The Coast</div>
+      </div>
       <div id="crew">
         <span id="crew-mara">Z MARA</span>
         <span id="crew-sully">X SULLY</span>
         <span id="crew-kiki">C KIKI</span>
       </div>
     </div>
+    <div id="dialogue" style="display:none">
+      <canvas id="portrait" width="72" height="72"></canvas>
+      <div id="dialogue-text"><b id="dialogue-name">LUPE</b><span id="dialogue-line"></span></div>
+    </div>
+    <div id="jack-prompt" style="display:none">Press <b>F</b> to jack this car</div>
     <div id="bottom-right">
       <canvas id="minimap" width="220" height="220"></canvas>
       <div id="speed"></div>
@@ -82,18 +111,30 @@ export function buildHUD() {
   els = {
     cash: document.getElementById('cash'),
     rank: document.getElementById('rank'),
+    rpFill: document.getElementById('rp-fill'),
     district: document.getElementById('district'),
     missionTitle: document.getElementById('mission-title'),
     missionBrief: document.getElementById('mission-brief'),
     missionClock: document.getElementById('mission-clock'),
     missionDist: document.getElementById('mission-dist'),
-    missionFill: document.getElementById('mission-fill'),
+    missionSegs: document.querySelectorAll('#mission-segs span'),
+    responsePanel: document.getElementById('response-panel'),
+    responseList: document.getElementById('response-list'),
     stars: document.getElementById('stars'),
+    seenBadge: document.getElementById('seen-badge'),
     evadeWrap: document.getElementById('evade-wrap'),
     evadeFill: document.getElementById('evade-fill'),
     healthFill: document.getElementById('health-fill'),
+    armourFill: document.getElementById('armour-fill'),
     weapon: document.getElementById('weapon'),
     ammo: document.getElementById('ammo'),
+    vehicleHud: document.getElementById('vehicle-hud'),
+    carName: document.getElementById('car-name'),
+    carCondFill: document.getElementById('car-cond-fill'),
+    carSpeed: document.getElementById('car-speed'),
+    carGear: document.getElementById('car-gear'),
+    carRadio: document.getElementById('car-radio'),
+    carSong: document.getElementById('car-song'),
     crewMara: document.getElementById('crew-mara'),
     crewSully: document.getElementById('crew-sully'),
     crewKiki: document.getElementById('crew-kiki'),
@@ -106,6 +147,11 @@ export function buildHUD() {
     mapScreen: document.getElementById('map-screen'),
     bustedScreen: document.getElementById('busted-screen'),
     debug: document.getElementById('debug'),
+    dialogue: document.getElementById('dialogue'),
+    dialogueName: document.getElementById('dialogue-name'),
+    dialogueLine: document.getElementById('dialogue-line'),
+    portrait: document.getElementById('portrait'),
+    jackPrompt: document.getElementById('jack-prompt'),
   };
   minimap = document.getElementById('minimap');
   mapCanvas = document.getElementById('map-canvas');
@@ -126,8 +172,53 @@ export function buildHUD() {
   document.getElementById('start-btn').addEventListener('click', () => {
     document.getElementById('start-screen').style.display = 'none';
     S.started = true;
+    showDialogue('LUPE', 'Welcome back to Solara, Kai. Eight jobs, one city — make it yours.');
+    S.dialogueUntil = S.time + 9;
+  });
+  document.getElementById('load-btn').addEventListener('click', () => {
+    if (opts.onLoad) opts.onLoad();
+    document.getElementById('start-screen').style.display = 'none';
+    S.started = true;
+  });
+  document.getElementById('settings-btn').addEventListener('click', () => {
+    const p = document.getElementById('settings-panel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  });
+  document.getElementById('set-sound').addEventListener('change', (e) => { S.soundOn = e.target.checked; });
+  document.getElementById('set-radio').addEventListener('change', (e) => { S.radioOn = e.target.checked; });
+  document.getElementById('set-hud').addEventListener('change', (e) => {
+    document.getElementById('top-left').style.display = e.target.checked ? '' : 'none';
+    document.getElementById('top-right').style.display = e.target.checked ? '' : 'none';
   });
   return els;
+}
+
+// Character portraits: simple drawn faces, one colour per character.
+const PORTRAITS = {
+  LUPE: { skin: '#c98e6a', hair: '#1a1210', bg: '#ff2e88', initial: 'L' },
+  SULLY: { skin: '#8a5a3a', hair: '#3a2a1a', bg: '#4fc3f7', initial: 'S' },
+  MARCO: { skin: '#e8b98a', hair: '#6b4a2a', bg: '#ffb74d', initial: 'M' },
+  BRANDT: { skin: '#c98e6a', hair: '#888888', bg: '#9b59b6', initial: 'B' },
+  AURORA: { skin: '#e8b98a', hair: '#ffd23a', bg: '#69f0ae', initial: 'A' },
+};
+
+export function showDialogue(name, line) {
+  if (!els.dialogue) return;
+  els.dialogueName.textContent = name;
+  els.dialogueLine.textContent = line;
+  els.dialogue.style.display = 'flex';
+  const p = PORTRAITS[name] || PORTRAITS.LUPE;
+  const g = els.portrait.getContext('2d');
+  g.fillStyle = p.bg; g.fillRect(0, 0, 72, 72);
+  g.fillStyle = p.skin;
+  g.beginPath(); g.arc(36, 38, 22, 0, Math.PI * 2); g.fill();
+  g.fillStyle = p.hair;
+  g.beginPath(); g.arc(36, 28, 22, Math.PI, 0); g.fill();
+  g.fillStyle = '#1a1210';
+  g.beginPath(); g.arc(28, 38, 3, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(44, 38, 3, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#1a1210'; g.lineWidth = 2;
+  g.beginPath(); g.arc(36, 46, 8, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
 }
 
 export function toast(text, secs = 3) {
@@ -198,6 +289,18 @@ function drawCityMap(g, size, cx, cz, half, showPolice) {
       g.fillRect(px - 3, py - 3, 6, 6);
     }
   }
+  // search grid: red dashed circle around the player while the heat is on
+  if (S.wanted > 0) {
+    const [px, py] = toMap(S.px, S.pz);
+    const r = (S.seen ? 90 : 140) / (2 * half) * size;
+    g.strokeStyle = S.seen ? 'rgba(255,64,64,0.9)' : 'rgba(255,210,58,0.8)';
+    g.setLineDash([6, 5]);
+    g.lineWidth = 2;
+    g.beginPath(); g.arc(px, py, r, 0, Math.PI * 2); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = 'rgba(255,64,64,0.08)';
+    g.beginPath(); g.arc(px, py, r, 0, Math.PI * 2); g.fill();
+  }
   // player arrow
   const [px, py] = toMap(S.px, S.pz);
   g.save();
@@ -212,24 +315,67 @@ export function hudTick(dt) {
   if (!els.cash) return;
   els.cash.textContent = fmtCash(S.cash);
   els.rank.textContent = S.rank + ' · ' + S.jobsDone + '/8 JOBS';
+  els.rpFill.style.width = (100 * S.jobsDone / 8) + '%';
   const d = districtAt(S.px, S.pz);
-  els.district.textContent = d ? d.name : 'SOLARA';
+  els.district.textContent = (d ? d.name : 'SOLARA') + ' · GRIP ' + (d ? (d.grip || 50) : 50) + '%';
 
-  // wanted stars — big and readable
+  // wanted stars — gold when gained
   let stars = '';
   for (let i = 0; i < 5; i++) stars += i < S.wanted ? '★' : '☆';
   els.stars.textContent = stars;
   els.stars.style.color = S.wanted >= 3 ? '#ff4040' : '#ffd23a';
+  // HIDDEN (blue, unseen) / IN SIGHT (red, seen) badge
+  if (S.wanted > 0) {
+    els.seenBadge.style.display = 'block';
+    els.seenBadge.textContent = S.seen ? 'IN SIGHT' : 'HIDDEN';
+    els.seenBadge.style.background = S.seen ? '#c62828' : '#1565c0';
+  } else els.seenBadge.style.display = 'none';
   els.evadeWrap.style.visibility = S.wanted > 0 ? 'visible' : 'hidden';
   els.evadeFill.style.width = S.evading + '%';
   els.healthFill.style.width = S.health + '%';
   els.healthFill.style.background = S.health > 50 ? '#69f0ae' : S.health > 25 ? '#ffb74d' : '#ff5252';
+  els.armourFill.style.width = (S.armour || 0) + '%';
+
+  // police RESPONSE panel: unit name + distance + status
+  if (S.wanted > 0) {
+    els.responsePanel.style.display = 'block';
+    const units = policeUnits();
+    els.responseList.innerHTML = units.map((u) =>
+      '<div class="resp-row"><span class="resp-name">' + u.name + '</span>' +
+      '<span class="resp-dist">' + (u.dist > 0 ? u.dist + 'm' : 'AIR') + '</span>' +
+      '<span class="resp-status ' + u.status.toLowerCase() + '">' + u.status + '</span></div>'
+    ).join('');
+  } else els.responsePanel.style.display = 'none';
 
   // weapon + ammo
   const w = WEAPONS[S.weaponIdx];
   els.weapon.textContent = w.name + (S.inCar ? ' · DRIVING' : '');
   els.ammo.textContent = w.kind === 'melee' ? '—' : S.ammo + ' / ' + S.reserve;
   els.ammo.style.color = S.ammo <= 3 && w.kind !== 'melee' ? '#ff5252' : '#fff';
+
+  // vehicle HUD: car name + condition + speed + gear + radio + song
+  if (S.inCar && S.car) {
+    els.vehicleHud.style.display = 'block';
+    els.carName.textContent = S.car.name || 'COMET';
+    els.carCondFill.style.width = Math.max(0, S.car.health || 0) + '%';
+    els.carCondFill.style.background = (S.car.health || 0) > 50 ? '#69f0ae' : (S.car.health || 0) > 25 ? '#ffb74d' : '#ff5252';
+    const kmh = Math.round(Math.abs(S.carSpeed || 0) * 3.6);
+    els.carSpeed.textContent = kmh + ' km/h';
+    els.carGear.textContent = 'G' + (kmh < 30 ? 1 : kmh < 60 ? 2 : kmh < 90 ? 3 : kmh < 120 ? 4 : 5);
+    const st = RADIO[S.station];
+    els.carRadio.textContent = st.name + (S.radioOn ? '' : ' · OFF');
+    els.carSong.textContent = S.radioOn ? st.song : '—';
+  } else els.vehicleHud.style.display = 'none';
+
+  // carjack prompt: "Press F" when a car is close
+  if (!S.inCar && S.started && !S.over) {
+    const cand = nearestCar(S.px, S.pz);
+    els.jackPrompt.style.display = cand ? 'block' : 'none';
+  } else els.jackPrompt.style.display = 'none';
+
+  // dialogue box: shows until dialogueUntil, with the character portrait
+  if (S.started && S.time < S.dialogueUntil) els.dialogue.style.display = 'flex';
+  else els.dialogue.style.display = 'none';
 
   // crew cooldowns
   const cd = (name, el, key) => {
@@ -241,28 +387,34 @@ export function hudTick(dt) {
   cd('X SULLY', els.crewSully, 'SULLY');
   cd('C KIKI', els.crewKiki, 'KIKI');
 
-  // mission panel + timed-job clock
+  // mission panel + segmented stage progress bar (4 segments)
+  const setSegs = (frac) => {
+    const filled = Math.round(frac * 4);
+    els.missionSegs.forEach((sp, i) => {
+      sp.style.background = i < filled ? '#ffd23a' : 'rgba(255,255,255,.18)';
+    });
+  };
   const m = currentMission();
   if (!m) {
     els.missionTitle.textContent = 'ALL JOBS DONE — FIXER OF SOLARA';
     els.missionBrief.textContent = 'Free roam. Jack cars, dodge the heat, enjoy the golden hour.';
     els.missionClock.textContent = '--:--';
     els.missionDist.textContent = '';
-    els.missionFill.style.width = '100%';
+    setSegs(1);
   } else if (S.missionActive) {
     els.missionTitle.textContent = 'JOB ' + (S.missionIdx + 1) + '/8 — ' + m.title.toUpperCase() + ' · ' + m.giver;
     els.missionBrief.textContent = m.brief;
     els.missionClock.textContent = fmtClock(S.missionTime);
     els.missionClock.style.color = S.missionTime < 30 ? '#ff5252' : '#ffd23a';
     els.missionDist.textContent = Math.round(missionDistance()) + 'm' + (S.missionHold > 0 ? ' · HOLD ' + Math.ceil(5 - S.missionHold) + 's' : '');
-    els.missionFill.style.width = (100 * S.missionTime / m.time) + '%';
+    setSegs(1 - S.missionTime / m.time);
   } else {
     els.missionTitle.textContent = 'NEXT JOB — ' + m.title.toUpperCase() + ' · ' + m.giver;
     els.missionBrief.textContent = m.brief + ' (go to the yellow beacon, press E)';
     els.missionClock.textContent = fmtClock(m.time);
     els.missionClock.style.color = '#fff';
     els.missionDist.textContent = Math.round(missionDistance()) + 'm';
-    els.missionFill.style.width = '0%';
+    setSegs(0);
   }
 
   // speed

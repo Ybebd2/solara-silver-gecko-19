@@ -83,14 +83,18 @@ export function addWanted(n, reason) {
   return S.wanted;
 }
 
+let unitSeq = 0;
+const UNIT_NAMES = ['CORAL', 'MARLIN', 'KITE', 'REEF', 'TIDE', 'SURGE'];
+
 function spawnCruiser() {
-  const { group, wheels } = makeCar(0x14181f, { police: true });
+  const { group, wheels } = makeCar(0xf5f5f5, { police: true });
   const a = Math.random() * Math.PI * 2;
   const x = S.px + Math.cos(a) * 55;
   const z = S.pz + Math.sin(a) * 55;
   group.position.set(x, 0, z);
   sceneRef.add(group);
-  const c = { group, wheels, heading: Math.atan2(S.px - x, S.pz - z), speed: 0, x, z };
+  unitSeq++;
+  const c = { group, wheels, heading: Math.atan2(S.px - x, S.pz - z), speed: 0, x, z, name: UNIT_NAMES[unitSeq % UNIT_NAMES.length] + '-' + (unitSeq % 9 + 1), hp: 100 };
   cruisers.push(c);
   return c;
 }
@@ -171,14 +175,14 @@ export function policeTick(dt) {
     const on = Math.sin(flashT * 10) > 0;
     if (c.group.userData.lightRed) c.group.userData.lightRed.material.color.setHex(on ? 0xff2020 : 0x550000);
     if (c.group.userData.lightBlue) c.group.userData.lightBlue.material.color.setHex(on ? 0x102060 : 0x2040ff);
-    // ramming the player on foot hurts
-    if (!S.inCar && dist < 2.4) {
+    // ramming the player on foot hurts (not during staged shots)
+    if (!S.shotMode && !S.inCar && dist < 2.4) {
       S.health = Math.max(0, S.health - 26 * dt);
       S.px += Math.sin(c.heading) * 6 * dt;
       S.pz += Math.cos(c.heading) * 6 * dt;
     }
-    // ramming the player's car damages it
-    if (S.inCar && S.car && dist < 4.2) {
+    // ramming the player's car damages it (not during staged shots)
+    if (!S.shotMode && S.inCar && S.car && dist < 4.2) {
       S.car.health = Math.max(0, S.car.health - 8 * dt);
       S.car.speed *= 0.995;
     }
@@ -251,4 +255,23 @@ export function nearestPoliceDist() {
   for (const c of cruisers) d = Math.min(d, Math.hypot(c.x - S.px, c.z - S.pz));
   for (const o of officers) d = Math.min(d, Math.hypot(o.x - S.px, o.z - S.pz));
   return d;
+}
+
+// Police RESPONSE panel data: unit name + distance + status, for the HUD.
+// Status: SEARCHING (unseen), PURSUIT (seen, closing), FIRING (officer shooting).
+export function policeUnits() {
+  const units = [];
+  for (const c of cruisers) {
+    const d = Math.hypot(c.x - S.px, c.z - S.pz);
+    const status = d < 10 ? 'PURSUIT' : S.seen ? 'PURSUIT' : 'SEARCHING';
+    units.push({ name: c.name || 'UNIT', dist: Math.round(d), status });
+  }
+  for (let i = 0; i < officers.length; i++) {
+    const o = officers[i];
+    const d = Math.hypot(o.x - S.px, o.z - S.pz);
+    const status = d < 45 ? 'FIRING' : S.seen ? 'PURSUIT' : 'SEARCHING';
+    units.push({ name: 'FOOT-' + (i + 1), dist: Math.round(d), status });
+  }
+  if (S.wanted >= 3) units.push({ name: 'HELI-1', dist: 0, status: 'PURSUIT' });
+  return units;
 }

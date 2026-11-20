@@ -1,18 +1,21 @@
 // SOLARA — shots.js
 // The 4 dossier screenshot setups, driven by ?shot=1..4 in the URL.
-// Each one stages the scene (player spot, car, wanted level, mission) and
-// returns an optional fixed cinematic camera. No other file reads the URL.
+// Each shot is staged so the new round-5 details are VISIBLE in the frame:
+// 1 = start menu over beach + towers, 2 = packed multi-lane street + towers,
+// 3 = Kai on foot, weapon visible, mission panel + stars, 4 = chase with
+// helicopter + police response panel. No other file reads the URL.
 
 import { S } from './config.js';
-import { enterCar, nearestCar } from './vehicles.js';
+import { enterCar, nearestCar, traffic } from './vehicles.js';
 import { startMission } from './missions.js';
 import { addWanted } from './police.js';
+import { showDialogue } from './hud.js';
 
 export const SHOTS = [
-  { name: 'beach-start', desc: 'Kai on foot at golden hour on Solara Beach, palms and ocean behind him' },
-  { name: 'cruiser-hero', desc: 'Hero shot: Kai in a sports car beside a black-and-white police cruiser downtown' },
-  { name: 'mission-drive', desc: 'Mission driving: Kai speeding down the coastal road toward Marco\u2019s Run' },
-  { name: 'neon-chase', desc: 'Neon Row at dusk: helicopter overhead, cruisers closing in, neon signs blazing' },
+  { name: 'start-menu', desc: 'Start menu: SOLARA title, NEW GAME / LOAD / SETTINGS, beach + skyscrapers behind' },
+  { name: 'packed-street', desc: 'Busy 4-lane downtown street packed with traffic, gold/teal towers, palms' },
+  { name: 'kai-on-foot', desc: 'Kai on foot, VESPER pistol visible, mission panel + wanted stars prominent' },
+  { name: 'neon-chase', desc: 'Neon Row chase: helicopter, cruisers, police response panel, full HUD' },
 ];
 
 export function getShotParam() {
@@ -34,50 +37,76 @@ function putInNearestCar() {
   if (cand) enterCar(cand);
 }
 
+// Cluster several traffic cars onto the road AHEAD of the player so the street
+// reads PACKED in the frame (two lanes each way, cars tight together).
+function packTraffic(cx, cz, roadZ) {
+  let placed = 0;
+  for (const c of traffic) {
+    if (placed >= 7) break;
+    const lane = placed % 2 === 0 ? 2.5 : 7.5;
+    const side = placed % 4 < 2 ? 1 : -1;
+    const along = cx + 18 + placed * 9; // ahead (east) of the player car
+    c.group.position.set(along, 0, roadZ + side * lane);
+    c.group.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+    c.horizontal = true;
+    c.road = roadZ;
+    c.dir = side;
+    c.speed = 1.5; // slow crawl — the pack stays in frame for the shot
+    placed++;
+  }
+}
+
 // Returns {camPos, camLook} for a fixed cinematic camera, or null to use the
 // normal chase camera.
 export function applyShot(n) {
-  hideStartScreen();
+  S.shotMode = true; // staged shots: police don't ram the player out of frame
   if (n === 1) {
-    // Beach, Kai on foot, facing the ocean sunset. Camera stays west of the
-    // beachfront building row (their west faces end near x=-244) so the
-    // frame holds Kai, sand, palms and the low sun — no wall in the way.
-    S.px = -264; S.pz = 30; S.heading = -Math.PI / 2;
-    S.wanted = 0; S.health = 100;
-    return { camPos: [-254, 4.5, 40], camLook: [-266, 1.5, 29] };
+    // START MENU: keep the menu visible, camera over downtown looking east
+    // at the street + gold/teal skyscrapers behind the buttons.
+    S.started = false;
+    return { camPos: [-236, 9, 84], camLook: [-40, 26, -20] };
   }
+  hideStartScreen();
   if (n === 2) {
-    // Hero shot on the open east-west road: Kai in a red sports car (parked
-    // car at (-24, 74)), camera low on the road looking east along it so
-    // the car reads big and the chasing cruiser can roll into frame.
-    S.px = -24; S.pz = 70; S.heading = Math.PI;
+    // PACKED STREET: Kai in a red sports car driving east on the 4-lane
+    // downtown road, traffic clustered tight ahead in both lanes, towers +
+    // palms ahead. Chase camera low behind the car so it reads BIG.
+    S.px = -24; S.pz = 70; S.heading = Math.PI / 2;
     putInNearestCar();
     if (S.car) {
+      S.car.heading = Math.PI / 2;
+      S.car.x = -40; S.car.z = 64; S.car.speed = 0;
+      S.car.group.position.set(-40, 0, 64);
+      S.car.group.rotation.y = Math.PI / 2;
       S.car.group.traverse((o) => {
         if (o.isMesh && o.material && o.material.metalness === 0.55 && o.material.roughness === 0.35) {
           o.material.color.setHex(0xc0392b);
         }
       });
     }
+    packTraffic(-40, 64, 64);
     addWanted(1, 'shot');
-    return { camPos: [-46, 7.5, 74], camLook: [-24, 0.8, 74] };
+    // 3/4 rear view from the south-west so the red car reads BIG in the
+    // foreground with the packed road + towers ahead.
+    return { camPos: [-64, 6, 78], camLook: [-20, 2, 64] };
   }
   if (n === 3) {
-    // Mission drive: Marco's Run active, Kai driving the coastal road.
-    // Parked car sits at (-8, 136); Kai starts beside it, already rolling.
-    S.missionIdx = 2;
-    S.px = -8; S.pz = 132; S.heading = Math.PI;
-    putInNearestCar();
-    if (S.car) S.car.speed = 22;
+    // KAI ON FOOT: camera on his gun side (west) so he is BIG and the silver
+    // VESPER pistol is visible; mission 1 active, 2 stars, Lupe's dialogue.
+    S.px = -40; S.pz = -184; S.heading = Math.PI;
+    S.missionIdx = 0;
     startMission();
-    return null; // chase cam — the drive reads best from behind the car
+    showDialogue('LUPE', 'Meet me at MO\u2019S, Kai. First job — don\u2019t keep me waiting.');
+    S.dialogueUntil = 9999; // keep Lupe's dialogue + portrait in frame
+    addWanted(2, 'shot');
+    return { camPos: [-44.5, 1.7, -185.5], camLook: [-39, 1.3, -184] };
   }
   if (n === 4) {
-    // Neon Row, 3 stars, helicopter + cruisers closing in. Player stands on
-    // the Neon Row road facing the signs; camera sits further down the road
-    // so the signs read face-on with the city behind them.
+    // NEON CHASE: 3 stars, helicopter + cruisers closing in, response panel
+    // live, neon signs blazing, full HUD.
     S.px = -8; S.pz = -186; S.heading = Math.PI;
-    S.wanted = 0;
+    S.missionIdx = 5;
+    startMission();
     S.heliAlt = 26; // bring the helicopter down into the frame for this shot
     addWanted(3, 'shot');
     return { camPos: [36, 10, -220], camLook: [-12, 10, -176] };

@@ -3,7 +3,7 @@
 // clock, a 3D beacon + HUD distance, and a rank payout. Ranks: ROOKIE → FIXER.
 
 import * as THREE from 'three';
-import { S, fmtCash, rankFor } from './config.js';
+import { S, fmtCash, rankFor, DISTRICTS } from './config.js';
 import { sfxCash, sfxFail } from './audio.js';
 
 export const MISSIONS = [
@@ -20,6 +20,8 @@ export const MISSIONS = [
 let sceneRef = null;
 let beacon = null;      // pulsing ring + beam at the current target
 let markerRing = null;
+let startCyl = null;    // big yellow cylinder at the mission start (before E)
+let safeCyl = null;     // pink cylinder at the safehouse (MO'S / Lupe's)
 
 export function buildMissions(scene) {
   sceneRef = scene;
@@ -40,6 +42,22 @@ export function buildMissions(scene) {
   markerRing = ring;
   beacon.visible = false;
   scene.add(beacon);
+
+  // big yellow start cylinder at the mission target (visible until the job starts)
+  startCyl = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.6, 2.6, 7, 20, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })
+  );
+  startCyl.position.set(-40, 3.5, -192);
+  scene.add(startCyl);
+
+  // pink safehouse cylinder at MO'S / Lupe's (always visible)
+  safeCyl = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.2, 2.2, 6, 20, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xff2e88, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })
+  );
+  safeCyl.position.set(-40, 3, -192);
+  scene.add(safeCyl);
 }
 
 export function currentMission() {
@@ -78,6 +96,14 @@ export function completeMission() {
   S.cash += m.reward;
   S.jobsDone++;
   S.rank = rankFor(S.jobsDone);
+  // district grip rises where the job was done
+  const t = m.target;
+  let best = null, bestD = Infinity;
+  for (const d of DISTRICTS) {
+    const dd = Math.hypot(t[0] - d.x, t[1] - d.z);
+    if (dd < bestD) { bestD = dd; best = d; }
+  }
+  if (best) best.grip = Math.min(95, (best.grip || 50) + 5);
   S.missionActive = false;
   S.missionTime = 0;
   beacon.visible = false;
@@ -95,6 +121,16 @@ export function completeMission() {
 export function missionsTick(dt) {
   if (!beacon) return;
   const m = currentMission();
+  // yellow start cylinder marks the job start until the job begins
+  if (startCyl) {
+    if (!m) { startCyl.visible = false; }
+    else if (!S.missionActive) {
+      const t0 = m.target;
+      startCyl.position.set(t0[0], 3.5, t0[1]);
+      startCyl.visible = true;
+      startCyl.rotation.y += dt * 0.6;
+    } else startCyl.visible = false;
+  }
   if (!m || !S.missionActive) { beacon.visible = false; return; }
 
   S.missionTime -= dt;
