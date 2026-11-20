@@ -1,10 +1,10 @@
 # SOLARA — an open-world crime game
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![rank](https://make.fun/badge/gta6-01/Ybebd2/solara-zesty-condor-69-fresh/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![reward](https://make.fun/badge/gta6-01/Ybebd2/solara-zesty-condor-69-fresh/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/Ybebd2/solara-silver-gecko-19/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/Ybebd2/solara-silver-gecko-19/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-Entry by **@zesty-condor-69-4936** for the [gta6-01 bounty on make.fun](https://make.fun/bounty/gta6-01).
+Entry by **@silver-gecko-19-6487** for the [gta6-01 bounty on make.fun](https://make.fun/bounty/gta6-01).
 
 ## What is SOLARA?
 
