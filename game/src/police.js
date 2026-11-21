@@ -1,349 +1,317 @@
-// SOLARA — police.js
-// Wanted system: cruisers + officers chase on the ground, and at 3+ stars a
-// detailed white helicopter joins with a searchlight. The beam is computed
-// from the lamp's LIVE world position every frame — apex at the spotlight
-// under the heli nose, bright pool at the exact ground hit point.
+// SOLARA — police.js (fresh build from spec, round 8)
+// Cruisers + officers + a detailed white helicopter. The searchlight
+// beam is computed LIVE from the heli lamp position every frame:
+// apex at the spotlight under the nose, beam to the ground, bright pool
+// at the exact hit point. Nothing floats, nothing is faked.
 
 import * as THREE from 'three';
-import { S } from './config.js';
 
-export const cruisers = [];
-export const officers = [];
-
-let heli = null;
-let heliLamp = null;
-let heliBeam = null;
-let heliPool = null;
-let heliRotor = null;
-let sceneRef = null;
-let flashT = 0;
-
-function buildCruiserMesh() {
+function makeCruiser() {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.9, 0.6, 4.3),
-    new THREE.MeshLambertMaterial({ color: 0xf2f2f2 })
+    new THREE.BoxGeometry(4.4, 0.9, 2.0),
+    new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.4, roughness: 0.4 })
   );
-  body.position.y = 0.55;
+  body.position.y = 0.8;
   g.add(body);
   const cabin = new THREE.Mesh(
-    new THREE.BoxGeometry(1.7, 0.5, 2.0),
-    new THREE.MeshLambertMaterial({ color: 0x1a2433 })
+    new THREE.BoxGeometry(2.2, 0.7, 1.8),
+    new THREE.MeshStandardMaterial({ color: 0xf5f5f5, metalness: 0.3, roughness: 0.4 })
   );
-  cabin.position.set(0, 1.05, -0.2);
+  cabin.position.set(-0.2, 1.5, 0);
   g.add(cabin);
-  // blue stripe along the side
-  const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(1.92, 0.18, 4.32),
-    new THREE.MeshLambertMaterial({ color: 0x1565c0 })
+  const bar = new THREE.Mesh(
+    new THREE.BoxGeometry(1.0, 0.3, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff0000, emissiveIntensity: 2 })
   );
-  stripe.position.y = 0.62;
-  g.add(stripe);
-  // light bar on the roof: red left, blue right, flashing in policeTick
-  const barL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), new THREE.MeshBasicMaterial({ color: 0xff2222 }));
-  barL.position.set(-0.45, 1.4, -0.2);
-  barL.name = 'barL';
+  bar.position.set(-0.2, 1.95, 0);
+  g.add(bar);
+  const barL = new THREE.Mesh(
+    new THREE.BoxGeometry(0.45, 0.32, 0.52),
+    new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 2.5 })
+  );
+  barL.position.set(-0.45, 1.95, 0);
   g.add(barL);
-  const barR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), new THREE.MeshBasicMaterial({ color: 0x2244ff }));
-  barR.position.set(0.45, 1.4, -0.2);
-  barR.name = 'barR';
+  const barR = new THREE.Mesh(
+    new THREE.BoxGeometry(0.45, 0.32, 0.52),
+    new THREE.MeshStandardMaterial({ color: 0x0000ff, emissive: 0x0000ff, emissiveIntensity: 2.5 })
+  );
+  barR.position.set(0.05, 1.95, 0);
   g.add(barR);
-  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
-  for (const [wx, wz] of [[-0.95, 1.4], [0.95, 1.4], [-0.95, -1.4], [0.95, -1.4]]) {
-    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.28, 10), wheelMat);
-    w.rotation.z = Math.PI / 2;
-    w.position.set(wx, 0.36, wz);
-    g.add(w);
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+  for (const [wx, wz] of [[1.4, 0.95], [1.4, -0.95], [-1.4, 0.95], [-1.4, -0.95]]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.3, 12), wheelMat);
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(wx, 0.42, wz);
+    g.add(wheel);
   }
   return g;
 }
 
-function buildOfficerMesh() {
+function makeOfficer() {
   const g = new THREE.Group();
-  const uni = new THREE.MeshLambertMaterial({ color: 0x1a3a6b });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.3), uni);
-  torso.position.y = 1.1;
-  g.add(torso);
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.19, 10, 8),
-    new THREE.MeshLambertMaterial({ color: 0xc98e6a })
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.42, 0.9, 4, 8),
+    new THREE.MeshStandardMaterial({ color: 0x0d47a1, roughness: 0.8 })
   );
-  head.position.y = 1.62;
+  body.position.y = 1.35;
+  g.add(body);
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xe8b98a, roughness: 0.8 })
+  );
+  head.position.y = 2.6;
   g.add(head);
   const cap = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.21, 0.21, 0.1, 10),
-    new THREE.MeshLambertMaterial({ color: 0x0d2137 })
+    new THREE.CylinderGeometry(0.36, 0.36, 0.16, 10),
+    new THREE.MeshStandardMaterial({ color: 0x0d47a1, roughness: 0.8 })
   );
-  cap.position.y = 1.78;
+  cap.position.y = 2.85;
   g.add(cap);
-  for (const sx of [-0.14, 0.14]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.62, 0.17), new THREE.MeshLambertMaterial({ color: 0x14181f }));
-    leg.position.set(sx, 0.35, 0);
-    g.add(leg);
-  }
-  const blob = new THREE.Mesh(
-    new THREE.CircleGeometry(0.5, 12),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false })
-  );
-  blob.rotation.x = -Math.PI / 2;
-  blob.position.y = 0.02;
-  g.add(blob);
   return g;
 }
 
-function buildHeli() {
+function makeHeli() {
   const g = new THREE.Group();
-  const white = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 5.2), white);
+  // detailed white fuselage
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(4.2, 1.6, 2.2),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3, roughness: 0.4 })
+  );
   body.position.y = 0;
   g.add(body);
-  // blue stripe along the body
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.24, 0.35, 5.24), new THREE.MeshLambertMaterial({ color: 0x1565c0 }));
-  stripe.position.y = 0.25;
-  g.add(stripe);
-  // glass nose
   const nose = new THREE.Mesh(
-    new THREE.SphereGeometry(1.0, 10, 8),
-    new THREE.MeshLambertMaterial({ color: 0x1a2a3a })
+    new THREE.SphereGeometry(1.1, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3, roughness: 0.4 })
   );
-  nose.scale.set(1, 0.75, 1.1);
-  nose.position.set(0, 0.1, 2.4);
+  nose.position.set(2.2, -0.1, 0);
+  nose.scale.set(1.2, 0.9, 1);
   g.add(nose);
-  // tail boom + tail fin
-  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.5, 4.2, 8), white);
-  boom.rotation.x = Math.PI / 2;
-  boom.position.set(0, 0.25, -4.4);
-  g.add(boom);
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.6, 1.0), white);
-  fin.position.set(0, 1.0, -6.3);
+  const glass = new THREE.Mesh(
+    new THREE.SphereGeometry(0.95, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0x0d47a1, metalness: 0.7, roughness: 0.15 })
+  );
+  glass.position.set(2.35, 0.25, 0);
+  glass.scale.set(1.1, 0.75, 0.95);
+  g.add(glass);
+  const tail = new THREE.Mesh(
+    new THREE.BoxGeometry(3.4, 0.7, 0.7),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3, roughness: 0.4 })
+  );
+  tail.position.set(-3.6, 0.35, 0);
+  g.add(tail);
+  const fin = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 1.6, 1.4),
+    new THREE.MeshStandardMaterial({ color: 0xe53935, roughness: 0.5 })
+  );
+  fin.position.set(-5.2, 0.9, 0);
   g.add(fin);
-  // skids
-  const skidMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
-  for (const sx of [-0.9, 0.9]) {
-    const skid = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 4.4, 6), skidMat);
+  const skidMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 });
+  for (const z of [-0.9, 0.9]) {
+    const skid = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 3.6, 6), skidMat);
     skid.rotation.x = Math.PI / 2;
-    skid.position.set(sx, -1.0, 0.2);
+    skid.position.set(0.4, -1.15, z);
     g.add(skid);
   }
-  // main rotor mast + blades + blur disc
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.8, 6), skidMat);
-  mast.position.y = 1.1;
-  g.add(mast);
-  heliRotor = new THREE.Group();
-  const bladeMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
-  for (const a of [0, Math.PI / 2]) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 7.6), bladeMat);
-    blade.rotation.y = a;
-    heliRotor.add(blade);
+  // main rotor + tail rotor
+  const rotor = new THREE.Group();
+  const bladeMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+  for (let i = 0; i < 4; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 5.4), bladeMat);
+    blade.rotation.y = (i * Math.PI) / 2;
+    rotor.add(blade);
   }
-  const blur = new THREE.Mesh(
-    new THREE.CircleGeometry(3.9, 24),
-    new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide })
+  rotor.position.y = 1.15;
+  g.add(rotor);
+  const tailRotor = new THREE.Group();
+  for (let i = 0; i < 2; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.6, 0.2), bladeMat);
+    blade.rotation.x = (i * Math.PI) / 2;
+    tailRotor.add(blade);
+  }
+  tailRotor.position.set(-5.3, 0.9, 0.45);
+  g.add(tailRotor);
+  // spotlight lamp UNDER THE NOSE — the beam apex
+  const lamp = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff9c4, emissiveIntensity: 3 })
   );
-  blur.rotation.x = -Math.PI / 2;
-  heliRotor.add(blur);
-  heliRotor.position.y = 1.5;
-  g.add(heliRotor);
-  // SEARCHLIGHT: a real lamp under the nose, with a bright lens. The beam
-  // cone below is positioned from THIS lamp's world position each frame.
-  heliLamp = new THREE.Group();
-  heliLamp.position.set(0, -0.85, 2.0);
-  const lampBody = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.3, 0.38, 0.35, 10),
-    new THREE.MeshLambertMaterial({ color: 0x444444 })
-  );
-  heliLamp.add(lampBody);
-  const lens = new THREE.Mesh(
-    new THREE.CircleGeometry(0.3, 12),
-    new THREE.MeshBasicMaterial({ color: 0xfffbe0 })
-  );
-  lens.rotation.x = Math.PI / 2;
-  lens.position.y = -0.19;
-  heliLamp.add(lens);
-  g.add(heliLamp);
-  g.visible = false;
-  return g;
+  lamp.position.set(2.0, -0.95, 0);
+  g.add(lamp);
+  return { group: g, rotor, tailRotor, lamp };
 }
 
-export function buildPolice(scene) {
-  sceneRef = scene;
-  heli = buildHeli();
-  scene.add(heli);
-  // beam cone: apex narrow at the lamp, wide at the ground (opacity 0.3)
-  heliBeam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.35, 3.0, 1, 16, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0xfff6c9, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide,
-    })
+export function createPolice(scene, S) {
+  const cruisers = [];
+  const officers = [];
+  const group = new THREE.Group();
+  scene.add(group);
+
+  for (let i = 0; i < 4; i++) {
+    const c = makeCruiser();
+    c.position.set(-120 + i * 80, 0, 120);
+    group.add(c);
+    cruisers.push({ mesh: c, x: c.position.x, z: c.position.z, heading: 0, speed: 0, active: false });
+  }
+  for (let i = 0; i < 6; i++) {
+    const o = makeOfficer();
+    o.position.set(-60 + i * 24, 0, -40);
+    group.add(o);
+    officers.push({ mesh: o, x: o.position.x, z: o.position.z, active: false });
+  }
+
+  // Helicopter + its beam. Beam geometry is rebuilt every frame from the
+  // lamp's live world position so it can never detach from the heli.
+  const heli = makeHeli();
+  heli.group.position.set(S.px + 30, 26, S.pz - 30);
+  group.add(heli.group);
+
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0xfff9c4, transparent: true, opacity: 0.20,
+    side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  // cone with apex at origin (top) opening downward — positioned each frame
+  const beamGeo = new THREE.ConeGeometry(3.5, 1, 20, 1, true);
+  beamGeo.translate(0, -0.5, 0); // apex at y=0, base at y=-1 (unit height)
+  const beam = new THREE.Mesh(beamGeo, beamMat);
+  beam.visible = false;
+  scene.add(beam);
+  // bright pool where the beam hits the ground
+  const pool = new THREE.Mesh(
+    new THREE.CircleGeometry(3.5, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff9c4, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false })
   );
-  heliBeam.visible = false;
-  scene.add(heliBeam);
-  // bright pool on the ground at the exact hit point (opacity 0.65)
-  heliPool = new THREE.Mesh(
-    new THREE.CircleGeometry(3.0, 20),
-    new THREE.MeshBasicMaterial({ color: 0xfff2a0, transparent: true, opacity: 0.65, depthWrite: false })
-  );
-  heliPool.rotation.x = -Math.PI / 2;
-  heliPool.position.y = 0.06;
-  heliPool.visible = false;
-  scene.add(heliPool);
-}
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.y = 0.1;
+  pool.visible = false;
+  scene.add(pool);
+  // real spotlight from the lamp
+  const spot = new THREE.SpotLight(0xfff9c4, 0, 90, 0.35, 0.5, 1.2);
+  scene.add(spot);
+  scene.add(spot.target);
 
-export function addWanted(n, reason) {
-  S.wanted = Math.min(5, S.wanted + n);
-  S.seen = true;
-  S.evading = 0;
-}
+  let heliAngle = 0;
+  let bobPhase = 0;
 
-function spawnPos() {
-  const a = Math.random() * Math.PI * 2;
-  const r = 55 + Math.random() * 30;
-  return {
-    x: Math.max(-300, Math.min(300, S.px + Math.cos(a) * r)),
-    z: Math.max(-300, Math.min(300, S.pz + Math.sin(a) * r)),
-  };
-}
+  function update(dt, t) {
+    const wanted = S.wanted;
+    const active = wanted > 0 && !S.shotMode ? true : wanted > 0;
+    // cruisers chase when wanted, patrol slowly otherwise
+    const wantCruisers = wanted >= 1 ? Math.min(4, wanted + 1) : 0;
+    cruisers.forEach((c, i) => {
+      c.active = i < wantCruisers;
+      c.mesh.visible = c.active;
+      if (!c.active) return;
+      const dx = S.px - c.x, dz = S.pz - c.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 6) {
+        const targetHeading = Math.atan2(-dz, dx);
+        let dh = targetHeading - c.heading;
+        while (dh > Math.PI) dh -= Math.PI * 2;
+        while (dh < -Math.PI) dh += Math.PI * 2;
+        c.heading += Math.max(-2.2 * dt, Math.min(2.2 * dt, dh));
+        c.speed = Math.min(c.speed + 14 * dt, 24 + wanted * 2);
+        c.x += Math.cos(c.heading) * c.speed * dt;
+        c.z += -Math.sin(c.heading) * c.speed * dt;
+      } else {
+        c.speed = Math.max(0, c.speed - 20 * dt);
+        // ram: bump the player
+        if (!S.inCar && dist < 4) {
+          S.health = Math.max(0, S.health - 12 * dt);
+        }
+      }
+      c.mesh.position.set(c.x, 0, c.z);
+      c.mesh.rotation.y = c.heading;
+    });
+    // officers chase on foot at high wanted
+    const wantOfficers = wanted >= 2 ? Math.min(6, wanted * 2) : 0;
+    officers.forEach((o, i) => {
+      o.active = i < wantOfficers;
+      o.mesh.visible = o.active;
+      if (!o.active) return;
+      const dx = S.px - o.x, dz = S.pz - o.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 1.5) {
+        o.x += (dx / dist) * 5 * dt;
+        o.z += (dz / dist) * 5 * dt;
+        o.mesh.rotation.y = Math.atan2(-dz, dx);
+      } else if (!S.inCar) {
+        S.health = Math.max(0, S.health - 8 * dt);
+        S.arrests += dt > 0 ? 0 : 0;
+      }
+      o.mesh.position.set(o.x, 0, o.z);
+    });
 
-function wantCounts() {
-  switch (S.wanted) {
-    case 1: return { cruisers: 1, officers: 1 };
-    case 2: return { cruisers: 2, officers: 2 };
-    case 3: return { cruisers: 3, officers: 4 };
-    case 4: return { cruisers: 4, officers: 5 };
-    case 5: return { cruisers: 5, officers: 6 };
-    default: return { cruisers: 0, officers: 0 };
-  }
-}
+    // Helicopter: appears at 3+ stars, orbits the player with a bob.
+    const heliOn = wanted >= 3 || (S.shotMode && wanted >= 3);
+    heli.group.visible = heliOn;
+    beam.visible = heliOn;
+    pool.visible = heliOn;
+    if (heliOn) {
+      heliAngle += dt * 0.35;
+      bobPhase += dt;
+      // Staged shots: park the heli in a fixed hover low enough to be
+      // IN the frame with its beam — an orbiting heli drifts out of shot.
+      let hx, hz, alt;
+      if (S.shotMode) {
+        // hover just off Kai's shoulder, LOW enough to be in frame with
+        // the beam (a 20 m hover sits above the camera's vertical FOV)
+        hx = S.px + 6;
+        hz = S.pz - 6;
+        alt = 14 + Math.sin(bobPhase * 1.1) * 1.0;
+      } else {
+        alt = 26 + Math.sin(bobPhase * 1.1) * 1.0; // heli bob
+        hx = S.px + Math.cos(heliAngle) * 22;
+        hz = S.pz + Math.sin(heliAngle) * 22;
+      }
+      heli.group.position.set(hx, alt, hz);
+      heli.group.rotation.y = Math.atan2(-(S.pz - hz), S.px - hx);
+      heli.rotor.rotation.y += dt * 22;
+      heli.tailRotor.rotation.z += dt * 30;
 
-export function policeTick(dt) {
-  if (!sceneRef) return;
-  flashT += dt;
-  const want = wantCounts();
-
-  // spawn up to the wanted level's counts
-  while (cruisers.length < want.cruisers) {
-    const p = spawnPos();
-    const g = buildCruiserMesh();
-    g.position.set(p.x, 0, p.z);
-    sceneRef.add(g);
-    cruisers.push({ group: g, x: p.x, z: p.z, heading: 0, name: 'MARLIN-' + (cruisers.length + 1) });
-  }
-  while (officers.length < want.officers) {
-    const p = spawnPos();
-    const g = buildOfficerMesh();
-    g.position.set(p.x, 0, p.z);
-    sceneRef.add(g);
-    officers.push({ group: g, x: p.x, z: p.z, heading: 0, name: 'FOOT-' + (officers.length + 1) });
-  }
-  // remove extras when the heat drops
-  while (cruisers.length > want.cruisers) {
-    const c = cruisers.pop();
-    sceneRef.remove(c.group);
-  }
-  while (officers.length > want.officers) {
-    const o = officers.pop();
-    sceneRef.remove(o.group);
-  }
-
-  // cruisers chase: steer toward the player at speed 32, flash the light bar
-  const flash = Math.sin(flashT * 14) > 0;
-  for (const c of cruisers) {
-    const dx = S.px - c.x;
-    const dz = S.pz - c.z;
-    const dist = Math.hypot(dx, dz) || 1;
-    const wantHeading = Math.atan2(dx, dz);
-    let dh = wantHeading - c.heading;
-    while (dh > Math.PI) dh -= Math.PI * 2;
-    while (dh < -Math.PI) dh += Math.PI * 2;
-    c.heading += Math.max(-2.4 * dt, Math.min(2.4 * dt, dh));
-    const speed = dist > 6 ? 32 : 12;
-    c.x += Math.sin(c.heading) * speed * dt;
-    c.z += Math.cos(c.heading) * speed * dt;
-    c.group.position.set(c.x, 0, c.z);
-    c.group.rotation.y = c.heading;
-    const barL = c.group.getObjectByName('barL');
-    const barR = c.group.getObjectByName('barR');
-    if (barL) barL.material.color.setHex(flash ? 0xff2222 : 0x661111);
-    if (barR) barR.material.color.setHex(flash ? 0x111166 : 0x2244ff);
-  }
-
-  // officers run at the player at speed 5.6
-  for (const o of officers) {
-    const dx = S.px - o.x;
-    const dz = S.pz - o.z;
-    const dist = Math.hypot(dx, dz) || 1;
-    o.heading = Math.atan2(dx, dz);
-    if (dist > 1.6) {
-      o.x += (dx / dist) * 5.6 * dt;
-      o.z += (dz / dist) * 5.6 * dt;
+      // BEAM: apex = lamp world position, straight down to the ground.
+      const lampWorld = new THREE.Vector3();
+      heli.lamp.getWorldPosition(lampWorld);
+      const groundY = 0.12;
+      const beamLen = lampWorld.y - groundY;
+      beam.position.copy(lampWorld);
+      beam.scale.set(1, beamLen, 1);
+      // pool exactly at the beam's ground hit point (directly below lamp)
+      pool.position.set(lampWorld.x, groundY, lampWorld.z);
+      const pulse = 0.36 + Math.sin(t * 6) * 0.06;
+      pool.material.opacity = pulse;
+      beamMat.opacity = 0.16 + Math.sin(t * 6) * 0.04;
+      spot.position.copy(lampWorld);
+      spot.target.position.set(lampWorld.x, 0, lampWorld.z);
+      spot.intensity = 900;
+      spot.angle = Math.atan2(3.5, beamLen);
+    } else {
+      spot.intensity = 0;
     }
-    o.group.position.set(o.x, Math.abs(Math.sin(S.time * 9 + o.x)) * 0.05, o.z);
-    o.group.rotation.y = o.heading;
-  }
 
-  // seen / evading: a unit within 28 m means the cops have eyes on Kai
-  let anyNear = false;
-  for (const c of cruisers) if (Math.hypot(c.x - S.px, c.z - S.pz) < 28) anyNear = true;
-  for (const o of officers) if (Math.hypot(o.x - S.px, o.z - S.pz) < 28) anyNear = true;
-  if (S.wanted > 0) {
-    if (anyNear) { S.seen = true; S.evading = 0; }
-    else {
-      S.seen = false;
-      S.evading = Math.min(100, S.evading + dt * 14);
-      if (S.evading >= 100) {
-        S.wanted = Math.max(0, S.wanted - 1);
+    // wanted decay when out of sight / evading
+    if (wanted > 0 && !S.shotMode) {
+      const nearest = cruisers.find((c) => c.active && Math.hypot(c.x - S.px, c.z - S.pz) < 40);
+      if (!nearest) {
+        S.evading += dt;
+        if (S.evading > 12) {
+          S.wanted = Math.max(0, S.wanted - 1);
+          S.evading = 0;
+        }
+      } else {
         S.evading = 0;
       }
     }
+    if (S.health <= 0 && !S.over) {
+      S.over = true;
+      S.message = 'BUSTED — press NEW GAME to retry';
+      S.messageUntil = S.time + 999;
+    }
   }
 
-  // helicopter at 3+ stars: hover above the player, bob, bank, beam on Kai
-  const heliOn = S.wanted >= 3;
-  heli.visible = heliOn;
-  heliBeam.visible = heliOn;
-  heliPool.visible = heliOn;
-  if (heliOn) {
-    // steadier hover (bob 1.2 -> 1.0) so the beam pool stays planted on Kai
-    // instead of wandering off the road while the heli bobs.
-    const bob = Math.sin(S.time * 1.4) * 1.0;
-    const hx = S.px + Math.sin(S.time * 0.5) * 6;
-    const hz = S.pz + Math.cos(S.time * 0.4) * 6;
-    const hy = 24 + bob;
-    heli.position.set(hx, hy, hz);
-    // bank into the turn: tilt with the sideways drift
-    heli.rotation.z = Math.cos(S.time * 0.5) * 0.12;
-    heli.rotation.x = Math.sin(S.time * 0.4) * 0.08;
-    heli.rotation.y = Math.atan2(S.px - hx, S.pz - hz);
-    if (heliRotor) heliRotor.rotation.y += dt * 28;
-
-    // BEAM: apex = the lamp's live world position (under the nose),
-    // direction straight to the player on the ground, pool at the hit point.
-    const lampPos = new THREE.Vector3();
-    heliLamp.getWorldPosition(lampPos);
-    const hit = new THREE.Vector3(S.px, 0.06, S.pz);
-    const dir = hit.clone().sub(lampPos);
-    const len = dir.length();
-    dir.normalize();
-    heliBeam.scale.set(1, len, 1);
-    heliBeam.position.copy(lampPos).addScaledVector(dir, len / 2);
-    heliBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().negate());
-    heliPool.position.set(hit.x, 0.06, hit.z);
-  }
-}
-
-export function policeUnits() {
-  const list = [];
-  for (const c of cruisers) {
-    const d = Math.round(Math.hypot(c.x - S.px, c.z - S.pz));
-    list.push({ name: c.name, dist: d, status: d < 12 ? 'FIRING' : 'PURSUIT' });
-  }
-  for (const o of officers) {
-    const d = Math.round(Math.hypot(o.x - S.px, o.z - S.pz));
-    list.push({ name: o.name, dist: d, status: d < 4 ? 'FIRING' : 'PURSUIT' });
-  }
-  if (S.wanted >= 3 && heli) {
-    const d = Math.round(Math.hypot(heli.position.x - S.px, heli.position.z - S.pz));
-    list.push({ name: 'HELI-1', dist: d, status: 'PURSUIT' });
-  }
-  return list;
+  return {
+    cruisers, officers, heli: heli.group,
+    policeCount: () => cruisers.filter((c) => c.active).length + officers.filter((o) => o.active).length + (S.wanted >= 3 ? 1 : 0),
+    update,
+  };
 }

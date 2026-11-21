@@ -1,104 +1,135 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>SOLARA — an open-world crime game</title>
-<link rel="icon" href="./favicon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOLARA — Vice City of the South</title>
+<link rel="icon" href="favicon.png">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1a2a; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #fff; user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
-  #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
-  #hud button { pointer-events: auto; cursor: pointer; }
-
-  /* start screen */
-  #start-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: linear-gradient(180deg, rgba(10,20,40,.55), rgba(10,20,40,.25) 45%, rgba(10,20,40,.6)); pointer-events: auto; text-align: center; padding: 20px; }
-  #start-screen .title { font-size: 84px; font-weight: 900; letter-spacing: 10px; color: #ffd23a; text-shadow: 0 0 24px rgba(255,210,58,.65), 0 4px 0 #7a5b00; }
-  #start-screen .subtitle { font-size: 18px; letter-spacing: 3px; color: #9fd8ff; }
-  #start-screen .start-body { font-size: 16px; line-height: 1.6; color: #eaf2ff; max-width: 560px; }
-  #start-screen .start-btns { display: flex; gap: 12px; margin-top: 6px; }
-  #start-screen button { font-size: 18px; font-weight: 700; padding: 12px 26px; border: none; border-radius: 6px; background: #ffd23a; color: #1a1210; }
-  #start-screen button.menu-btn { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.4); }
-  #settings-panel { font-size: 15px; display: flex; gap: 18px; }
-  #settings-panel label { display: flex; gap: 6px; align-items: center; }
-  .controls-grid { display: grid; grid-template-columns: auto auto; gap: 4px 16px; font-size: 13px; color: #cfe3ff; text-align: left; background: rgba(0,0,0,.35); padding: 12px 18px; border-radius: 8px; }
-  .controls-grid span:nth-child(odd) { font-weight: 700; color: #ffd23a; }
-  .start-foot { font-size: 13px; color: #9fb4d8; }
-
-  /* top left */
-  #top-left { position: absolute; top: 14px; left: 14px; display: flex; flex-direction: column; gap: 6px; width: 300px; }
-  #cash { font-size: 30px; font-weight: 900; color: #69f0ae; text-shadow: 0 2px 4px rgba(0,0,0,.7); }
-  #rank { font-size: 14px; font-weight: 700; letter-spacing: 1px; }
-  #rp-bar { height: 6px; background: rgba(255,255,255,.2); border-radius: 3px; overflow: hidden; }
-  #rp-fill { height: 100%; width: 0%; background: #ffd23a; }
-  #district { font-size: 13px; color: #cfe3ff; }
-  #geckos { font-size: 14px; font-weight: 700; color: #ffd23a; }
-  #mission-panel { background: rgba(8,14,28,.72); border: 1px solid rgba(255,210,58,.5); border-radius: 8px; padding: 10px 12px; }
-  #mission-title { font-size: 14px; font-weight: 800; color: #ffd23a; }
-  #mission-brief { font-size: 13px; line-height: 1.45; color: #eaf2ff; margin-top: 4px; }
-  #mission-meta { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-top: 6px; }
-  #mission-segs { display: flex; gap: 4px; margin-top: 6px; }
-  #mission-segs span { flex: 1; height: 5px; background: rgba(255,255,255,.18); border-radius: 2px; }
-  #response-panel { background: rgba(40,8,12,.78); border: 1px solid rgba(255,64,64,.6); border-radius: 8px; padding: 8px 12px; }
-  #response-title { font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #ff8a80; }
-  .resp-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
-  .resp-name { font-weight: 700; }
-  .resp-status.pursuit { color: #ffb74d; }
-  .resp-status.firing { color: #ff5252; font-weight: 800; }
-
-  /* top right */
-  #top-right { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-  #stars { font-size: 30px; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
-  #seen-badge { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 4px; }
-  #evade-wrap, #health-wrap, #armour-wrap { width: 170px; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-  #evade-bar, #health-bar, #armour-bar { height: 8px; background: rgba(255,255,255,.2); border-radius: 4px; overflow: hidden; margin-top: 2px; }
-  #evade-fill { height: 100%; width: 0%; background: #ffd23a; }
-  #health-fill { height: 100%; width: 100%; background: #69f0ae; }
-  #armour-fill { height: 100%; width: 0%; background: #4fc3f7; }
-
-  /* bottom left */
-  #bottom-left { position: absolute; left: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 4px; }
-  #weapon { font-size: 22px; font-weight: 900; letter-spacing: 2px; }
-  #ammo { font-size: 18px; font-weight: 700; }
-  #vehicle-hud { background: rgba(8,14,28,.72); border-radius: 8px; padding: 8px 12px; margin-top: 4px; min-width: 250px; }
-  #car-name { font-size: 16px; font-weight: 900; letter-spacing: 1px; }
-  #car-cond { height: 5px; background: rgba(255,255,255,.2); border-radius: 3px; margin: 4px 0; overflow: hidden; }
-  #car-cond-fill { height: 100%; background: #69f0ae; }
-  #car-line { font-size: 13px; color: #cfe3ff; }
-  #car-song { font-size: 12px; color: #ffd23a; font-style: italic; }
-  #crew { display: flex; gap: 10px; font-size: 12px; font-weight: 700; margin-top: 4px; }
-  #crew span { background: rgba(8,14,28,.6); padding: 3px 8px; border-radius: 4px; }
-
-  /* dialogue */
-  #dialogue { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; background: rgba(8,14,28,.85); border: 1px solid rgba(255,255,255,.25); border-radius: 10px; padding: 10px 16px; max-width: 640px; }
-  #dialogue-text { font-size: 15px; line-height: 1.45; }
-  #dialogue-name { color: #ffd23a; margin-right: 8px; }
-  #portrait { border-radius: 6px; flex-shrink: 0; }
-
-  #jack-prompt { position: absolute; left: 50%; bottom: 170px; transform: translateX(-50%); background: rgba(8,14,28,.85); padding: 8px 16px; border-radius: 6px; font-size: 15px; border: 1px solid #ffd23a; }
-  #bottom-right { position: absolute; right: 14px; bottom: 14px; text-align: right; }
-  #minimap { border: 2px solid rgba(255,255,255,.35); border-radius: 8px; background: #141a24; }
-  #speed { font-size: 20px; font-weight: 900; margin-top: 4px; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
-  #crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 26px; font-weight: 700; color: rgba(255,255,255,.85); text-shadow: 0 0 4px #000; }
-  #toast { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); background: rgba(8,14,28,.85); padding: 8px 18px; border-radius: 6px; font-size: 15px; font-weight: 700; opacity: 0; transition: opacity .3s; white-space: nowrap; }
-  #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 13px; color: rgba(255,255,255,.75); text-shadow: 0 1px 3px #000; }
-  #pause-screen, #map-screen, #busted-screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(5,8,16,.72); pointer-events: auto; }
-  .pause-title, .busted-title { font-size: 56px; font-weight: 900; letter-spacing: 8px; }
-  .busted-title { color: #ff5252; }
-  .map-title { font-size: 26px; font-weight: 900; letter-spacing: 3px; }
-  #map-canvas { border: 2px solid rgba(255,255,255,.35); border-radius: 8px; max-width: 92vw; max-height: 72vh; }
-  .map-foot { font-size: 13px; color: #cfe3ff; }
-  #debug { position: absolute; left: 4px; bottom: 2px; font-size: 10px; color: rgba(255,255,255,.35); white-space: pre; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1c2c; font-family: 'Arial Black', Arial, sans-serif; }
+  #game-canvas { position: fixed; inset: 0; }
+  #game-canvas canvas { display: block; }
+  .hud { position: fixed; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.8); z-index: 10; pointer-events: none; }
+  #hud-top-left { top: 14px; left: 14px; }
+  #hud-cash { font-size: 30px; color: #69f0ae; }
+  #hud-rank { font-size: 16px; color: #ffd54f; letter-spacing: 2px; }
+  #hud-district { font-size: 13px; letter-spacing: 3px; opacity: .9; }
+  #hud-top-right { top: 14px; right: 14px; text-align: right; }
+  #hud-wanted { font-size: 26px; color: #ffd54f; letter-spacing: 4px; }
+  #hud-radio { font-size: 13px; color: #00e5ff; }
+  #hud-geckos { font-size: 14px; color: #ffd700; margin-top: 4px; }
+  #minimap { width: 180px; height: 180px; border: 3px solid rgba(255,255,255,.7); border-radius: 8px; margin-top: 8px; background: #0b1c2c; }
+  #hud-mission { top: 14px; left: 50%; transform: translateX(-50%); text-align: center; width: 480px; max-width: 60vw; }
+  #hud-mission-title { font-size: 20px; color: #ffea00; }
+  #hud-mission-info { font-size: 13px; color: #fff; font-family: Arial, sans-serif; font-weight: bold; }
+  #hud-bottom-left { bottom: 16px; left: 14px; width: 260px; }
+  .bar-label { font-size: 12px; letter-spacing: 2px; }
+  .bar { height: 14px; background: rgba(0,0,0,.55); border: 2px solid #fff; border-radius: 3px; margin: 3px 0 8px; overflow: hidden; }
+  .bar > div { height: 100%; }
+  #hud-hp-bar { background: #43a047; width: 100%; }
+  #hud-ap-bar { background: #1e88e5; width: 40%; }
+  #hud-weapon { font-size: 16px; color: #ff8a80; }
+  #hud-ammo { font-size: 15px; }
+  #hud-message { bottom: 110px; left: 50%; transform: translateX(-50%); font-size: 22px; color: #ffea00; text-align: center; width: 80vw; transition: opacity .3s; }
+  #dialogue { bottom: 170px; left: 50%; transform: translateX(-50%); width: 620px; max-width: 86vw; background: rgba(10,10,30,.85); border: 2px solid #e040fb; border-radius: 10px; padding: 14px 18px; display: none; }
+  #dlg-speaker { font-size: 18px; color: #e040fb; letter-spacing: 2px; }
+  #dlg-line { font-size: 15px; font-family: Arial, sans-serif; margin-top: 6px; line-height: 1.45; }
+  #dlg-reply { font-size: 14px; font-family: Arial, sans-serif; margin-top: 8px; color: #00e5ff; font-style: italic; }
+  #hud-controls { bottom: 14px; right: 14px; text-align: right; font-size: 11px; font-family: Arial, sans-serif; opacity: .85; line-height: 1.6; }
+  .overlay { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #start-menu { background: linear-gradient(160deg, rgba(20,10,40,.88), rgba(10,40,60,.88)); }
+  #start-menu h1 { font-size: 84px; letter-spacing: 8px; background: linear-gradient(90deg, #ff2d95, #ffea00, #00e5ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #start-menu h2 { font-size: 20px; color: #fff; letter-spacing: 6px; margin: 8px 0 26px; }
+  #start-menu p { color: #cfd8dc; font-family: Arial, sans-serif; font-size: 14px; max-width: 560px; line-height: 1.6; margin-bottom: 26px; }
+  .menu-btn { pointer-events: auto; cursor: pointer; font-family: 'Arial Black', Arial, sans-serif; font-size: 22px; letter-spacing: 3px; color: #111; background: linear-gradient(90deg, #ffea00, #ff9100); border: none; border-radius: 8px; padding: 14px 44px; margin: 6px; box-shadow: 0 4px 0 #b26a00; }
+  .menu-btn:active { transform: translateY(3px); box-shadow: none; }
+  .menu-btn.secondary { background: linear-gradient(90deg, #00e5ff, #2979ff); color: #fff; box-shadow: 0 4px 0 #0d47a1; font-size: 16px; padding: 10px 30px; }
+  #pause-menu { display: none; background: rgba(0,0,0,.7); color: #fff; }
+  #pause-menu h1 { font-size: 48px; letter-spacing: 6px; }
+  #map-overlay { display: none; position: fixed; inset: 0; z-index: 40; background: rgba(5,15,25,.92); color: #fff; text-align: center; padding-top: 40px; }
+  #map-overlay h1 { letter-spacing: 6px; color: #00e5ff; }
+  #map-overlay p { font-family: Arial, sans-serif; margin-top: 16px; line-height: 2; }
+  body.hide-hud .hud { display: none; }
+  body.shot-mode #hud-controls { display: none; }
 </style>
 <script type="importmap">
-{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
 </script>
 </head>
 <body>
-<canvas id="game-canvas"></canvas>
-<div id="hud"></div>
+<div id="game-canvas"></div>
+
+<div class="hud" id="hud-top-left">
+  <div id="hud-cash">$250</div>
+  <div id="hud-rank">ROOKIE</div>
+  <div id="hud-district">DOWNTOWN</div>
+</div>
+
+<div class="hud" id="hud-top-right">
+  <div id="hud-wanted">☆☆☆☆☆</div>
+  <div id="hud-radio">NEON 101.5 — night drive</div>
+  <div id="hud-geckos">🦎 0/20</div>
+  <canvas id="minimap" width="180" height="180"></canvas>
+</div>
+
+<div class="hud" id="hud-mission">
+  <div id="hud-mission-title">LUPE — First Fix</div>
+  <div id="hud-mission-info">Meet Lupe at MO'S on Neon Row.</div>
+</div>
+
+<div class="hud" id="hud-bottom-left">
+  <div class="bar-label">HEALTH <span id="hud-health">100</span></div>
+  <div class="bar"><div id="hud-hp-bar"></div></div>
+  <div class="bar-label">ARMOUR <span id="hud-armour">40</span></div>
+  <div class="bar"><div id="hud-ap-bar"></div></div>
+  <div id="hud-weapon">VESPER</div>
+  <div id="hud-ammo">12 / 48</div>
+</div>
+
+<div class="hud" id="hud-message"></div>
+
+<div class="hud" id="dialogue">
+  <div id="dlg-speaker">LUPE</div>
+  <div id="dlg-line"></div>
+  <div id="dlg-reply"></div>
+</div>
+
+<div class="hud" id="hud-controls">
+  WASD move · SHIFT sprint · SPACE jump<br>
+  E mission · F car · R reload · 1-5 weapons<br>
+  Q radio · M map · F9 autopilot · Z/X/C crew · ESC pause
+</div>
+
+<div class="overlay" id="start-menu">
+  <h1>SOLARA</h1>
+  <h2>VICE CITY OF THE SOUTH</h2>
+  <p>Eight jobs. One fixer. Steal cars, lose the cops, run the Neon Row —
+  from Lupe's first fix to Brandt's Solara Job. Collect all 20 Golden
+  Geckos, climb from ROOKIE to FIXER, and own this city.</p>
+  <button class="menu-btn" id="start-btn">NEW GAME</button><br>
+  <button class="menu-btn secondary" id="load-btn">LOAD</button>
+  <button class="menu-btn secondary" id="settings-btn">SETTINGS — SOUND ON</button>
+</div>
+
+<div class="overlay" id="pause-menu">
+  <h1>PAUSED</h1>
+  <p style="font-family:Arial,sans-serif;margin-top:12px;">Press ESC to keep playing.</p>
+</div>
+
+<div id="map-overlay">
+  <h1>SOLARA MAP</h1>
+  <p>
+    🌊 MARINA BAY (-210,-210) · 🏭 OLD PORT (-210,210) · 🏙 DOWNTOWN (0,0)<br>
+    🌆 NEON ROW (0,-190) · 🌴 PALM HEIGHTS (190,-190) · ⚓ DOCKSIDE (190,190)<br>
+    🏖 SOLARA BEACH (-280,0) — press M to close
+  </p>
+</div>
+
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

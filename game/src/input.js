@@ -1,63 +1,66 @@
-// SOLARA — input.js
-// One place for all keyboard + mouse state, so every system reads the same
-// source of truth instead of attaching its own listeners.
+// SOLARA — input.js (fresh build from spec, round 8)
+// Keyboard + mouse-drag orbit camera state. No DOM game logic here.
 
-export const keys = Object.create(null); // e.code -> held?
-export const pressed = Object.create(null); // e.code -> true for one frame
-export const mouse = { x: 0, y: 0, down: false, dx: 0, dy: 0, clicked: false };
+export function createInput() {
+  const keys = {};
+  const input = {
+    keys,
+    // mouse orbit
+    dragX: 0,
+    dragY: 0,
+    dragging: false,
+    camYaw: Math.PI * 0.75,
+    camPitch: 0.32,
+    // edge-triggered presses consumed by main loop
+    pressed: {},
+    mouseDX: 0,
+    mouseDY: 0,
+  };
 
-let dragFrom = null;
-
-export function initInput(canvas) {
   window.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     keys[e.code] = true;
-    pressed[e.code] = true;
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) {
+    input.pressed[e.code] = true;
+    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
       e.preventDefault();
     }
   });
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
   window.addEventListener('blur', () => {
     for (const k of Object.keys(keys)) keys[k] = false;
-    for (const k of Object.keys(pressed)) pressed[k] = false;
-    mouse.down = false;
-    mouse.clicked = false;
-    dragFrom = null;
   });
 
-  canvas.addEventListener('pointerdown', (e) => {
-    mouse.down = true;
-    mouse.clicked = true;
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
-    dragFrom = { x: e.clientX, y: e.clientY };
-    canvas.setPointerCapture(e.pointerId);
+  const canvasHolder = document.body;
+  canvasHolder.addEventListener('mousedown', (e) => {
+    if (e.target && e.target.closest && e.target.closest('button')) return;
+    input.dragging = true;
+    input.dragX = e.clientX;
+    input.dragY = e.clientY;
   });
-  canvas.addEventListener('pointermove', (e) => {
-    if (dragFrom) {
-      mouse.dx += e.clientX - dragFrom.x;
-      mouse.dy += e.clientY - dragFrom.y;
-      dragFrom = { x: e.clientX, y: e.clientY };
-    }
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
+  window.addEventListener('mousemove', (e) => {
+    if (!input.dragging) return;
+    input.mouseDX += e.clientX - input.dragX;
+    input.mouseDY += e.clientY - input.dragY;
+    input.dragX = e.clientX;
+    input.dragY = e.clientY;
   });
-  const release = () => { mouse.down = false; dragFrom = null; };
-  canvas.addEventListener('pointerup', release);
-  canvas.addEventListener('pointercancel', release);
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-}
+  window.addEventListener('mouseup', () => { input.dragging = false; });
 
-// Call once per frame, after every system has read the input: one-shot
-// flags (pressed keys, click, drag deltas) expire so they fire exactly once.
-export function endFrameInput() {
-  for (const k of Object.keys(pressed)) pressed[k] = false;
-  mouse.dx = 0;
-  mouse.dy = 0;
-  mouse.clicked = false;
-}
+  // Apply accumulated mouse drag to the orbit angles.
+  input.consumeMouse = () => {
+    input.camYaw -= input.mouseDX * 0.005;
+    input.camPitch += input.mouseDY * 0.003;
+    input.camPitch = Math.max(0.05, Math.min(1.2, input.camPitch));
+    input.mouseDX = 0;
+    input.mouseDY = 0;
+  };
 
-export function anyPressed(...codes) {
-  return codes.some((c) => pressed[c]);
+  // True once on the frame the key went down.
+  input.wasPressed = (code) => {
+    if (input.pressed[code]) { input.pressed[code] = false; return true; }
+    return false;
+  };
+  input.clearPressed = () => { input.pressed = {}; };
+
+  return input;
 }
